@@ -130,7 +130,7 @@ Item {
     var copy = []
     for (var i = 0; i < devices.length; i++) {
       var d = devices[i]
-      if (d.id === deviceId || d.name === deviceId || deviceId === "default") {
+      if (d.id === deviceId || d.name === deviceId || deviceId === "default" || devices.length === 1) {
         var devCopy = JSON.parse(JSON.stringify(d))
         updateFn(devCopy)
         copy.push(devCopy)

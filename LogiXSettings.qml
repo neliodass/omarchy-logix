@@ -115,7 +115,7 @@ Item {
     root.configVersion++
   }
 
-  function currentAssignedAction() {
+  readonly property string currentActionId: {
     var _ = root.configVersion
     if (activeTab === "ring") {
       return getSlotAction(selectedSlotId)
@@ -125,6 +125,10 @@ Item {
       return getButtonAction(selectedButtonId)
     }
     return ""
+  }
+
+  function currentAssignedAction() {
+    return currentActionId
   }
 
   function getButtonAction(buttonId) {
@@ -449,10 +453,11 @@ Item {
                         model: root.filteredActions()
 
                         delegate: Rectangle {
+                          id: ringActionRow
                           width: ListView.view.width
                           height: 40
                           radius: 6
-                          property bool isAssigned: Model.normalizeActionId(root.currentAssignedAction()) === Model.normalizeActionId(modelData.id)
+                          property bool isAssigned: Model.normalizeActionId(root.currentActionId) === Model.normalizeActionId(modelData.id)
                           color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
                           RowLayout {
@@ -461,13 +466,13 @@ Item {
                             anchors.rightMargin: 10
                             spacing: 8
 
-                            Text { text: modelData.label; color: root.foreground; font.pixelSize: 12; font.bold: parent.parent.isAssigned }
+                            Text { text: modelData.label; color: root.foreground; font.pixelSize: 12; font.bold: ringActionRow.isAssigned }
                             Text { text: "(" + modelData.category + ")"; color: root.dim; font.pixelSize: 10 }
                             Item { Layout.fillWidth: true }
 
                             Button {
-                              text: parent.parent.isAssigned ? "Active" : "Assign"
-                              enabled: !parent.parent.isAssigned
+                              text: ringActionRow.isAssigned ? "Active" : "Assign"
+                              enabled: !ringActionRow.isAssigned
                               onClicked: root.assignAction(modelData.id, modelData.label)
                             }
                           }
@@ -633,10 +638,11 @@ Item {
                         model: root.filteredActions()
 
                         delegate: Rectangle {
+                          id: gestureActionRow
                           width: ListView.view.width
                           height: 40
                           radius: 6
-                          property bool isAssigned: Model.normalizeActionId(root.currentAssignedAction()) === Model.normalizeActionId(modelData.id)
+                          property bool isAssigned: Model.normalizeActionId(root.currentActionId) === Model.normalizeActionId(modelData.id)
                           color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
                           RowLayout {
@@ -645,13 +651,13 @@ Item {
                             anchors.rightMargin: 10
                             spacing: 8
 
-                            Text { text: modelData.label; color: root.foreground; font.pixelSize: 12; font.bold: parent.parent.isAssigned }
+                            Text { text: modelData.label; color: root.foreground; font.pixelSize: 12; font.bold: gestureActionRow.isAssigned }
                             Text { text: "(" + modelData.category + ")"; color: root.dim; font.pixelSize: 10 }
                             Item { Layout.fillWidth: true }
 
                             Button {
-                              text: parent.parent.isAssigned ? "Active" : "Assign"
-                              enabled: !parent.parent.isAssigned
+                              text: gestureActionRow.isAssigned ? "Active" : "Assign"
+                              enabled: !gestureActionRow.isAssigned
                               onClicked: root.assignAction(modelData.id, modelData.label)
                             }
                           }
@@ -904,10 +910,11 @@ Item {
                         model: root.filteredActions()
 
                         delegate: Rectangle {
+                          id: buttonActionRow
                           width: ListView.view.width
                           height: 40
                           radius: 6
-                          property bool isAssigned: Model.normalizeActionId(root.currentAssignedAction()) === Model.normalizeActionId(modelData.id)
+                          property bool isAssigned: Model.normalizeActionId(root.currentActionId) === Model.normalizeActionId(modelData.id)
                           color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
                           RowLayout {
@@ -916,13 +923,13 @@ Item {
                             anchors.rightMargin: 10
                             spacing: 8
 
-                            Text { text: modelData.label; color: root.foreground; font.pixelSize: 12; font.bold: parent.parent.isAssigned }
+                            Text { text: modelData.label; color: root.foreground; font.pixelSize: 12; font.bold: buttonActionRow.isAssigned }
                             Text { text: "(" + modelData.category + ")"; color: root.dim; font.pixelSize: 10 }
                             Item { Layout.fillWidth: true }
 
                             Button {
-                              text: parent.parent.isAssigned ? "Active" : "Assign"
-                              enabled: !parent.parent.isAssigned
+                              text: buttonActionRow.isAssigned ? "Active" : "Assign"
+                              enabled: !buttonActionRow.isAssigned
                               onClicked: root.assignAction(modelData.id, modelData.label)
                             }
                           }
