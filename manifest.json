@@ -1,25 +1,25 @@
 {
-  "schema": "https://omarchy.org/schemas/plugin-manifest.v1.json",
+  "schemaVersion": 1,
   "id": "io.logix.omarchy",
   "name": "LogiX Control",
   "version": "1.0.0",
-  "description": "Advanced Logitech HID++ Driver, Smart Ring Radial Wheel & Gestures for Omarchy 4.0",
   "author": "Bartek Pieróg",
-  "type": "bar-widget",
+  "license": "MIT",
+  "description": "Advanced Logitech HID++ Driver, Smart Ring Radial Wheel & Gestures for Omarchy 4.0",
+  "kinds": [
+    "bar-widget",
+    "service",
+    "panel"
+  ],
   "entryPoints": {
     "barWidget": "BarWidget.qml",
-    "settings": "LogiXSettings.qml",
-    "service": "Service.qml"
+    "service": "Service.qml",
+    "panel": "LogiXSettings.qml"
   },
-  "capabilities": {
-    "process": {
-      "exec": [
-        {
-          "command": "python3",
-          "purpose": "Runs logixctl.py hardware driver and gesture daemon"
-        }
-      ]
-    },
-    "dependencies": []
+  "barWidget": {
+    "displayName": "LogiX Control",
+    "description": "Logitech mouse & keyboard hardware controls",
+    "category": "Hardware",
+    "allowMultiple": false
   }
 }
