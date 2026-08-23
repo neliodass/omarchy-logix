@@ -545,6 +545,45 @@ def find_matching_config(cfg_devices: dict, dev: dict) -> Tuple[Optional[str], d
     return None, {}
 
 
+def action_label(act_id: str) -> str:
+    labels = {
+        "ToggleMaximize": "Maximize Window",
+        "MaximizeWindow": "Maximize Window",
+        "Fullscreen": "Maximize Window",
+        "ToggleOverview": "Overview / Mission Control",
+        "Overview": "Overview / Mission Control",
+        "MissionControl": "Overview / Mission Control",
+        "CloseWindow": "Close Window",
+        "WorkspaceNext": "Next Workspace",
+        "NextWorkspace": "Next Workspace",
+        "WorkspacePrev": "Previous Workspace",
+        "PrevWorkspace": "Previous Workspace",
+        "FocusNextWindow": "Tile Right",
+        "TileRight": "Tile Right",
+        "FocusPrevWindow": "Tile Left",
+        "TileLeft": "Tile Left",
+        "FocusUpWindow": "Tile Up",
+        "TileUp": "Tile Up",
+        "FocusDownWindow": "Tile Down",
+        "TileDown": "Tile Down",
+        "VolumeUp": "Volume Up",
+        "VolumeDown": "Volume Down",
+        "VolumeMute": "Mute / Unmute",
+        "MediaPlayPause": "Play / Pause Media",
+        "MediaNext": "Next Track",
+        "MediaPrev": "Previous Track",
+        "Screenshot": "Capture Screenshot",
+        "Launcher": "App Launcher / Search",
+        "ShowActionRing": "Show Smart Ring",
+        "MiddleClick": "Middle Mouse Click",
+        "NavigateBack": "Back Button",
+        "NavigateForward": "Forward Button",
+        "ToggleSmartShift": "SmartShift Mode",
+        "ToggleDpi": "Cycle DPI Preset",
+    }
+    return labels.get(act_id, act_id or "Do Nothing")
+
+
 def get_full_status() -> dict:
     devices, adapters = scan_hidraw()
     config = load_logix_config()
@@ -562,9 +601,9 @@ def get_full_status() -> dict:
             if bid in raw_buttons:
                 val = raw_buttons[bid]
                 act = val if isinstance(val, str) else (val.get("action", btn["defaultAction"]) if isinstance(val, dict) else btn["defaultAction"])
-                buttons_map[bid] = {"action": act}
+                buttons_map[bid] = {"action": act, "label": action_label(act)}
             else:
-                buttons_map[bid] = {"action": btn["defaultAction"]}
+                buttons_map[bid] = {"action": btn["defaultAction"], "label": action_label(btn["defaultAction"])}
 
         # Normalize action ring slots
         ar_cfg = dev_cfg.get("action_ring", default_cfg["action_ring"]) if isinstance(dev_cfg, dict) else default_cfg["action_ring"]
@@ -580,10 +619,12 @@ def get_full_status() -> dict:
                         break
             if val is not None:
                 act = val if isinstance(val, str) else (val.get("action", slot["defaultAction"]) if isinstance(val, dict) else slot["defaultAction"])
-                lbl = val.get("label", act) if isinstance(val, dict) else act
+                lbl = val.get("label", "") if isinstance(val, dict) else str(val)
+                if not lbl or lbl == sid or lbl == slot["label"] or "slot" in lbl.lower():
+                    lbl = action_label(act)
                 slots_map[sid] = {"action": act, "label": lbl}
             else:
-                slots_map[sid] = {"action": slot["defaultAction"], "label": slot["label"]}
+                slots_map[sid] = {"action": slot["defaultAction"], "label": action_label(slot["defaultAction"])}
         ar_cfg["slots"] = slots_map
 
         # Normalize gestures map
@@ -595,10 +636,12 @@ def get_full_status() -> dict:
             if gid in raw_gestures:
                 val = raw_gestures[gid]
                 act = val if isinstance(val, str) else (val.get("action", g["defaultAction"]) if isinstance(val, dict) else g["defaultAction"])
-                lbl = val.get("label", act) if isinstance(val, dict) else act
+                lbl = val.get("label", "") if isinstance(val, dict) else str(val)
+                if not lbl or lbl == gid or lbl == g["label"]:
+                    lbl = action_label(act)
                 gestures_map[gid] = {"action": act, "label": lbl}
             else:
-                gestures_map[gid] = {"action": g["defaultAction"], "label": g["label"]}
+                gestures_map[gid] = {"action": g["defaultAction"], "label": action_label(g["defaultAction"])}
 
         dev["config"] = dev_cfg
         dev["dpi"] = dev_cfg.get("dpi", 1000) if isinstance(dev_cfg, dict) else 1000

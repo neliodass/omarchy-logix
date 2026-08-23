@@ -121,7 +121,7 @@ function getActionRingSlots(device) {
       }
     }
     var actId = (typeof custom === "string") ? custom : (custom && custom.action ? custom.action : slotDef.defaultAction)
-    var actLabel = (custom && custom.label) ? custom.label : actionLabel(actId)
+    var actLabel = (custom && custom.label && custom.label !== slotDef.label && custom.label !== slotDef.id && custom.label.toLowerCase().indexOf("slot") === -1) ? custom.label : actionLabel(actId)
     result.push({
       id: slotDef.id,
       label: slotDef.label,
@@ -142,7 +142,7 @@ function getGestures(device) {
     var gDef = GESTURE_DIRECTIONS[i]
     var custom = conf[gDef.id]
     var actId = (typeof custom === "string") ? custom : (custom && custom.action ? custom.action : gDef.defaultAction)
-    var actLabel = (custom && custom.label) ? custom.label : actionLabel(actId)
+    var actLabel = (custom && custom.label && custom.label !== gDef.label && custom.label !== gDef.id) ? custom.label : actionLabel(actId)
     result.push({
       id: gDef.id,
       label: gDef.label,
@@ -162,11 +162,12 @@ function getButtons(device) {
     var bDef = HARDWARE_BUTTONS[i]
     var custom = conf[bDef.id]
     var actId = (typeof custom === "string") ? custom : (custom && custom.action ? custom.action : bDef.defaultAction)
+    var actLabel = (custom && custom.label && custom.label !== bDef.label && custom.label !== bDef.id) ? custom.label : actionLabel(actId)
     result.push({
       id: bDef.id,
       label: bDef.label,
       action: actId,
-      actionLabel: actionLabel(actId),
+      actionLabel: actLabel,
       icon: actionIcon(actId)
     })
   }
