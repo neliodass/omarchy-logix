@@ -31,24 +31,32 @@ ACTION_RING_SLOTS = [
     {"id": "TopLeft", "label": "Top Left", "angle": 315, "glyph": "↖", "defaultAction": "Mute"},
 ]
 
-GESTURE_DIRECTIONS = ["Up", "Down", "Left", "Right", "Click"]
+GESTURE_DIRECTIONS = [
+    {"id": "Up", "label": "Swipe Up", "glyph": "↑", "defaultAction": "TileUp"},
+    {"id": "Down", "label": "Swipe Down", "glyph": "↓", "defaultAction": "TileDown"},
+    {"id": "Left", "label": "Swipe Left", "glyph": "←", "defaultAction": "TileLeft"},
+    {"id": "Right", "label": "Swipe Right", "glyph": "→", "defaultAction": "TileRight"},
+    {"id": "Click", "label": "Single Click", "glyph": "◎", "defaultAction": "ShowActionRing"},
+]
 
 HARDWARE_BUTTONS = [
+    {"id": "HapticPanel", "label": "Smart Ring / Thumb Rest", "cid": 0x01A0, "defaultAction": "ShowActionRing"},
     {"id": "GestureButton", "label": "Thumb Gesture Button", "cid": 0x00C3, "defaultAction": "Gestures"},
-    {"id": "HapticPanel", "label": "Smart Ring / Thumb Rest", "cid": 0x00C3, "defaultAction": "ShowActionRing"},
     {"id": "DpiToggle", "label": "Top Mode Button", "cid": 0x00C4, "defaultAction": "DpiCycle"},
     {"id": "MiddleClick", "label": "Scroll Wheel Click", "cid": 0x0052, "defaultAction": "MiddleClick"},
     {"id": "Back", "label": "Side Back Button", "cid": 0x0053, "defaultAction": "Back"},
     {"id": "Forward", "label": "Side Forward Button", "cid": 0x0056, "defaultAction": "Forward"},
-    {"id": "Thumbwheel", "label": "Horizontal Thumb Wheel", "cid": 0x0057, "defaultAction": "HorizontalScroll"},
+    {"id": "Thumbwheel", "label": "Horizontal Thumb Wheel", "cid": 0x00D7, "defaultAction": "HorizontalScroll"},
 ]
 
 CID_TO_BUTTON = {
+    0x01A0: "HapticPanel",
     0x00C3: "GestureButton",
     0x00C4: "DpiToggle",
     0x0052: "MiddleClick",
     0x0053: "Back",
     0x0056: "Forward",
+    0x00D7: "Thumbwheel",
 }
 
 
@@ -284,19 +292,28 @@ def apply_hardware_smartshift(hidraw_path: str, mode_str: str, threshold: int = 
     if fd is None:
         return False
     try:
-        feat_idx = get_feature_index(fd, 0x2121) or get_feature_index(fd, 0x2120) or get_feature_index(fd, 0x2110)
-        if feat_idx is None:
-            return False
+        # Check 0x2111 (SmartShiftWheelEnhanced on MX Master 3/3S/4)
+        feat_idx = get_feature_index(fd, 0x2111)
+        if feat_idx is not None:
+            # Function 2: set_ratchet_control_mode([wheel_mode, auto_disengage, torque])
+            # wheel_mode: 1 = Freespin, 2 = Ratchet
+            if mode_str == "freewheel":
+                params = bytes([1, 0, max(1, min(100, torque))])
+            elif mode_str == "ratchet":
+                params = bytes([2, 0, max(1, min(100, torque))])
+            else: # auto
+                params = bytes([2, max(1, min(255, threshold)), max(1, min(100, torque))])
+            res = hidpp_call(fd, feat_idx, 0x02, params)
+            return res is not None
 
-        mode_num = 3 # auto
-        if mode_str == "ratchet":
-            mode_num = 1
-        elif mode_str == "freewheel":
-            mode_num = 2
-
-        params = bytes([mode_num, max(1, min(255, threshold)), max(1, min(100, torque))])
-        res = hidpp_call(fd, feat_idx, 0x01, params)
-        return res is not None
+        # Fallback to 0x2110
+        feat_idx = get_feature_index(fd, 0x2110)
+        if feat_idx is not None:
+            mode_num = 1 if mode_str == "ratchet" else (2 if mode_str == "freewheel" else 3)
+            params = bytes([mode_num, max(1, min(255, threshold)), max(1, min(100, torque))])
+            res = hidpp_call(fd, feat_idx, 0x01, params)
+            return res is not None
+        return False
     finally:
         os.close(fd)
 
@@ -352,6 +369,10 @@ def dispatch_action(action_id: str) -> None:
         subprocess.Popen(["hyprctl", "dispatch", "movefocus", "l"])
     elif action_id == "TileRight":
         subprocess.Popen(["hyprctl", "dispatch", "movefocus", "r"])
+    elif action_id == "TileUp":
+        subprocess.Popen(["hyprctl", "dispatch", "movefocus", "u"])
+    elif action_id == "TileDown":
+        subprocess.Popen(["hyprctl", "dispatch", "movefocus", "d"])
     elif action_id == "CloseWindow":
         subprocess.Popen(["hyprctl", "dispatch", "killactive"])
     elif action_id == "ShowDesktop":
@@ -498,9 +519,9 @@ def default_device_config(name: str, kind: str) -> dict:
     for slot in ACTION_RING_SLOTS:
         slots[slot["id"]] = {"action": slot["defaultAction"], "label": slot["label"]}
 
-    gestures = {"enabled": True, "owner": "GestureButton"}
-    for direction in GESTURE_DIRECTIONS:
-        gestures[direction] = {"action": "ShowActionRing" if direction == "Click" else f"Tile{direction}", "label": direction}
+    gestures = {}
+    for g in GESTURE_DIRECTIONS:
+        gestures[g["id"]] = {"action": g["defaultAction"], "label": g["label"]}
 
     buttons = {}
     for btn in HARDWARE_BUTTONS:
@@ -546,37 +567,53 @@ def get_full_status() -> dict:
         matched_key, dev_cfg = find_matching_config(cfg_devices, dev)
         default_cfg = default_device_config(dev.get("name", ""), dev.get("kind", ""))
 
+        # Normalize buttons map
         buttons_map = {}
         raw_buttons = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
         for btn in HARDWARE_BUTTONS:
             bid = btn["id"]
             if bid in raw_buttons:
                 val = raw_buttons[bid]
-                act = val if isinstance(val, str) else val.get("action", btn["defaultAction"])
+                act = val if isinstance(val, str) else (val.get("action", btn["defaultAction"]) if isinstance(val, dict) else btn["defaultAction"])
                 buttons_map[bid] = {"action": act}
             else:
                 buttons_map[bid] = {"action": btn["defaultAction"]}
 
+        # Normalize action ring slots
         ar_cfg = dev_cfg.get("action_ring", default_cfg["action_ring"]) if isinstance(dev_cfg, dict) else default_cfg["action_ring"]
         slots_map = {}
-        raw_slots = ar_cfg.get("slots", {})
+        raw_slots = ar_cfg.get("slots", {}) if isinstance(ar_cfg, dict) else {}
         for slot in ACTION_RING_SLOTS:
             sid = slot["id"]
             if sid in raw_slots:
                 val = raw_slots[sid]
-                act = val if isinstance(val, str) else val.get("action", slot["defaultAction"])
+                act = val if isinstance(val, str) else (val.get("action", slot["defaultAction"]) if isinstance(val, dict) else slot["defaultAction"])
                 lbl = val.get("label", act) if isinstance(val, dict) else act
                 slots_map[sid] = {"action": act, "label": lbl}
             else:
                 slots_map[sid] = {"action": slot["defaultAction"], "label": slot["label"]}
         ar_cfg["slots"] = slots_map
 
+        # Normalize gestures map
+        g_cfg = dev_cfg.get("gestures", default_cfg["gestures"]) if isinstance(dev_cfg, dict) else default_cfg["gestures"]
+        gestures_map = {}
+        raw_gestures = g_cfg if isinstance(g_cfg, dict) else {}
+        for g in GESTURE_DIRECTIONS:
+            gid = g["id"]
+            if gid in raw_gestures:
+                val = raw_gestures[gid]
+                act = val if isinstance(val, str) else (val.get("action", g["defaultAction"]) if isinstance(val, dict) else g["defaultAction"])
+                lbl = val.get("label", act) if isinstance(val, dict) else act
+                gestures_map[gid] = {"action": act, "label": lbl}
+            else:
+                gestures_map[gid] = {"action": g["defaultAction"], "label": g["label"]}
+
         dev["config"] = dev_cfg
         dev["dpi"] = dev_cfg.get("dpi", 1000) if isinstance(dev_cfg, dict) else 1000
         dev["smartshift"] = dev_cfg.get("smartshift", {"mode": "auto", "threshold": 12, "torque": 50}) if isinstance(dev_cfg, dict) else {"mode": "auto", "threshold": 12, "torque": 50}
         dev["scroll"] = dev_cfg.get("scroll", {"invert_y": False, "invert_thumb": False, "hires": True}) if isinstance(dev_cfg, dict) else {"invert_y": False, "invert_thumb": False, "hires": True}
         dev["action_ring"] = ar_cfg
-        dev["gestures"] = dev_cfg.get("gestures", default_cfg["gestures"]) if isinstance(dev_cfg, dict) else default_cfg["gestures"]
+        dev["gestures"] = gestures_map
         dev["buttons"] = buttons_map
         dev["keyboard"] = dev_cfg.get("keyboard", {}) if isinstance(dev_cfg, dict) else {}
 
@@ -682,7 +719,23 @@ def process_command(cmd_file: Path) -> None:
             ar["slots"] = slots
             apply_device_update(target_key, {"action_ring": ar})
     elif cmd_type == "set_gesture":
-        apply_device_update(device_id, {"gestures": payload})
+        direction = payload.get("direction")
+        action = payload.get("action")
+        label = payload.get("label", action)
+        if direction:
+            cfg = load_openlogi_config()
+            cfg_devices = cfg.get("devices", {})
+            target_key = device_id
+            for k in cfg_devices.keys():
+                if k in device_id or device_id in k:
+                    target_key = k
+                    break
+            dev_cfg = cfg_devices.get(target_key, {})
+            gmap = dev_cfg.get("gestures", {})
+            if not isinstance(gmap, dict):
+                gmap = {}
+            gmap[direction] = {"action": action, "label": label}
+            apply_device_update(target_key, {"gestures": gmap})
     elif cmd_type == "set_button":
         btn = payload.get("button")
         action = payload.get("action")
@@ -710,9 +763,19 @@ def process_command(cmd_file: Path) -> None:
         pass
 
 
-def serve_daemon() -> None:
+def write_status_file(status: dict) -> None:
     rdir = get_runtime_dir()
     status_path = rdir / "status.json"
+    tmp_status = rdir / f"status-{os.getpid()}-{int(time.time() * 1000)}.tmp"
+    try:
+        tmp_status.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp_status.replace(status_path)
+    except Exception:
+        pass
+
+
+def serve_daemon() -> None:
+    rdir = get_runtime_dir()
     lock_path = rdir / "openlogictl.lock"
 
     try:
@@ -733,8 +796,8 @@ def serve_daemon() -> None:
             hid_fd = open_hidraw(dev_path)
             if hid_fd is not None:
                 reprog_idx = get_feature_index(hid_fd, 0x1B04)
-                # Divert Gesture Button, Top Mode Button, and Side Buttons
-                for cid in [0x00C3, 0x00C4, 0x0053, 0x0056]:
+                # Divert HapticPanel (0x01A0), Gesture Button (0x00C3), Top Mode Button (0x00C4), Side Buttons
+                for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
                     set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
 
     # Gesture state
@@ -745,9 +808,7 @@ def serve_daemon() -> None:
 
     try:
         status = get_full_status()
-        tmp_status = status_path.with_suffix(".tmp")
-        tmp_status.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp_status.replace(status_path)
+        write_status_file(status)
 
         last_heartbeat = time.time()
         while True:
@@ -756,8 +817,7 @@ def serve_daemon() -> None:
             for cf in cmd_files:
                 process_command(cf)
                 status = get_full_status()
-                tmp_status.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
-                tmp_status.replace(status_path)
+                write_status_file(status)
 
             # Read live hardware HID++ reports from mouse
             read_fds = [hid_fd] if hid_fd is not None else []
@@ -782,7 +842,7 @@ def serve_daemon() -> None:
                                     press_time = time.time()
                                 elif active_cid is not None:
                                     # Button UP — process action or gesture
-                                    btn_name = CID_TO_BUTTON.get(active_cid, "GestureButton")
+                                    btn_name = CID_TO_BUTTON.get(active_cid, "HapticPanel")
                                     cfg = load_openlogi_config()
                                     _, dev_cfg = find_matching_config(cfg.get("devices", {}), devices[0] if devices else {})
                                     buttons_map = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
@@ -790,7 +850,7 @@ def serve_daemon() -> None:
                                     dist = math.sqrt(acc_dx * acc_dx + acc_dy * acc_dy)
                                     if dist < 20:
                                         # Single Click
-                                        act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("GestureButton", "HapticPanel") else "None")
+                                        act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("HapticPanel", "GestureButton") else "None")
                                         if isinstance(act, dict):
                                             act = act.get("action", "None")
                                         dispatch_action(act)
@@ -826,15 +886,14 @@ def serve_daemon() -> None:
             now = time.time()
             if now - last_heartbeat >= HEARTBEAT_SEC:
                 status = get_full_status()
-                tmp_status.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
-                tmp_status.replace(status_path)
+                write_status_file(status)
                 last_heartbeat = now
     except KeyboardInterrupt:
         pass
     finally:
         if hid_fd is not None:
             try:
-                for cid in [0x00C3, 0x00C4, 0x0053, 0x0056]:
+                for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
                     set_button_diversion(hid_fd, cid, divert=False, raw_xy=False)
                 os.close(hid_fd)
             except Exception:
@@ -900,10 +959,7 @@ def main() -> None:
         cmd_file.write_text(json.dumps(cmd_data, ensure_ascii=False), encoding="utf-8")
         process_command(cmd_file)
         status = get_full_status()
-        status_path = rdir / "status.json"
-        tmp_status = status_path.with_suffix(".tmp")
-        tmp_status.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp_status.replace(status_path)
+        write_status_file(status)
         emit({"ok": True, "file": str(cmd_file)})
     elif args.subcommand == "serve":
         serve_daemon()

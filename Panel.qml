@@ -23,7 +23,7 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var device: mx ? mx.selectedDevice : null
-  readonly property bool isMouse: Model.isMouse(device)
+  readonly property bool isMouse: device ? !Model.isKeyboard(device) : true
   readonly property bool showDevices: mx && mx.displayDevices && mx.displayDevices.length > 1
 
   function open() {
