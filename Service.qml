@@ -18,18 +18,27 @@ Item {
   property bool refreshing: false
   property bool daemonWanted: false
   property bool userPicked: false
+  property bool hasSnapshot: false
   property string statusText: "Checking…"
   property string message: ""
   property string lastError: ""
   property var devices: []
   property var adapters: []
   property string selectedId: ""
+  property double lastStatusMs: 0
+  property bool peerServing: false
+
+  property string probedUid: ""
+  readonly property string runtimeUid: {
+    var uid = Quickshell.env("UID")
+    if (uid && /^\d+$/.test(String(uid))) return String(uid)
+    return probedUid
+  }
 
   readonly property string runtimeDir: {
     var dir = Quickshell.env("XDG_RUNTIME_DIR")
     if (dir && dir !== "") return String(dir) + "/omarchy-openlogi"
-    var uid = Quickshell.env("UID") || "1000"
-    return "/run/user/" + String(uid) + "/omarchy-openlogi"
+    return "/run/user/" + String(runtimeUid || "") + "/omarchy-openlogi"
   }
   readonly property string statusPath: runtimeDir + "/status.json"
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 15, 5, 300)
@@ -65,97 +74,161 @@ Item {
     return url
   }
 
-  function selectDevice(id) {
-    userPicked = true
-    selectedId = String(id || "")
+  function applyStatus(raw, source) {
+    try {
+      var parsed = Model.parseStatus(raw)
+      if (source === "file") lastStatusMs = Date.now()
+      openlogiInstalled = parsed.openlogiInstalled === true
+      openlogiRunning = parsed.openlogiRunning === true
+      accessible = parsed.accessible === true
+      devices = parsed.devices || []
+      adapters = parsed.adapters || []
+      message = String(parsed.message || "")
+      hasSnapshot = devices.length > 0
+      refreshing = false
+
+      var picked = Model.pickDefaultDevice(devices, preferredId, userPicked)
+      if (picked && picked.id) selectedId = String(picked.id)
+      statusText = !devices.length ? (message || "No Logitech device") : (picked ? picked.name : "OpenLogi")
+    } catch (e) {
+      console.warn("openlogi applyStatus error:", e)
+    }
   }
 
-  function refresh() {
-    if (discoverProcess.running) return
+  function discover() {
+    if (discoverProcess.running || helperPath === "") return
     refreshing = true
+    discoverProcess.command = ["python3", helperPath, "discover"]
     discoverProcess.running = true
   }
 
   function ensureDaemon() {
     daemonWanted = true
-    if (!serveProcess.running) {
-      serveProcess.running = true
+    peerServing = false
+    lastStatusMs = Date.now()
+    if (!daemon.running && !peerServing) {
+      daemon.running = true
     }
   }
 
-  function sendCommand(type, deviceId, payload) {
-    var devId = deviceId || (selectedDevice ? selectedDevice.id : "")
-    if (!devId) return
+  function refresh(force) {
+    if (daemonWanted) {
+      if (statusFile) statusFile.reload()
+      return
+    }
+    discover()
+  }
+
+  function selectDevice(id) {
+    userPicked = true
+    selectedId = String(id || "")
+  }
+
+  function writeCmd(type, payload) {
+    if (helperPath === "") return
+    var devId = selectedDevice ? selectedDevice.id : ""
     var payloadJson = JSON.stringify(payload || {})
-    var cmd = [helperPath, "write-cmd", type, devId, payloadJson]
-    Quickshell.exec(cmd, function() {
-      // Re-trigger refresh after command
-      Qt.callLater(refresh)
+    Quickshell.execDetached(["python3", helperPath, "write-cmd", type, devId, payloadJson])
+    Qt.callLater(function() {
+      if (statusFile) statusFile.reload()
+      discover()
     })
   }
 
   function setDpi(deviceId, dpi) {
-    sendCommand("set_dpi", deviceId, { dpi: dpi })
+    writeCmd("set_dpi", { dpi: dpi })
   }
 
   function setSmartShift(deviceId, mode, threshold) {
-    sendCommand("set_smartshift", deviceId, { mode: mode, threshold: threshold })
+    writeCmd("set_smartshift", { mode: mode, threshold: threshold })
   }
 
   function setScroll(deviceId, invertY, invertThumb, hires) {
-    sendCommand("set_scroll", deviceId, { invert_y: invertY, invert_thumb: invertThumb, hires: hires })
+    writeCmd("set_scroll", { invert_y: invertY, invert_thumb: invertThumb, hires: hires })
   }
 
   function setActionRing(deviceId, enabled, haptics) {
-    sendCommand("set_action_ring", deviceId, { enabled: enabled, haptics: haptics })
+    writeCmd("set_action_ring", { enabled: enabled, haptics: haptics })
   }
 
   function setActionRingSlot(deviceId, slot, action, label) {
-    sendCommand("set_action_ring_slot", deviceId, { slot: slot, action: action, label: label })
+    writeCmd("set_action_ring_slot", { slot: slot, action: action, label: label })
   }
 
   function setGesture(deviceId, direction, action, label) {
-    sendCommand("set_gesture", deviceId, { direction: direction, action: action, label: label })
+    writeCmd("set_gesture", { direction: direction, action: action, label: label })
   }
 
   function setButton(deviceId, button, action) {
-    sendCommand("set_button", deviceId, { button: button, action: action })
+    writeCmd("set_button", { button: button, action: action })
   }
 
   function setKeyboard(deviceId, kbSettings) {
-    sendCommand("set_keyboard", deviceId, kbSettings)
+    writeCmd("set_keyboard", kbSettings)
   }
 
-  function applyStatusData(data) {
-    root.openlogiInstalled = data.openlogiInstalled
-    root.openlogiRunning = data.openlogiRunning
-    root.accessible = data.accessible
-    root.devices = data.devices || []
-    root.adapters = data.adapters || []
-    root.message = data.message || ""
-    root.refreshing = false
+  FileView {
+    id: statusFile
+    path: root.statusPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.applyStatus(text(), "file")
+    onFileChanged: reload()
   }
 
   Process {
-    id: discoverProcess
-    command: [root.helperPath, "discover"]
-    running: false
-    stdout: StderrMode.Pipe
-
-    onExited: function(code) {
-      root.refreshing = false
-      if (code === 0) {
-        var raw = discoverProcess.readAll()
-        var parsed = Model.parseStatus(raw)
-        root.applyStatusData(parsed)
+    id: uidProbe
+    running: {
+      var dir = Quickshell.env("XDG_RUNTIME_DIR")
+      if (dir && dir !== "") return false
+      var uid = Quickshell.env("UID")
+      if (uid && /^\d+$/.test(String(uid))) return false
+      return root.probedUid === ""
+    }
+    command: ["id", "-u"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var uid = String(text).trim()
+        if (/^\d+$/.test(uid)) root.probedUid = uid
       }
     }
   }
 
   Process {
-    id: serveProcess
-    command: [root.helperPath, "serve"]
+    id: mkdirProcess
     running: false
+    command: ["python3", root.helperPath, "runtime-dir"]
+    onExited: Qt.callLater(function() { if (statusFile) statusFile.reload() })
+  }
+
+  Process {
+    id: daemon
+    running: root.daemonWanted && !root.peerServing
+    command: ["python3", root.helperPath, "serve"]
+    onExited: function(exitCode) {
+      if (!root.daemonWanted) return
+      root.peerServing = false
+      Qt.callLater(function() {
+        if (root.daemonWanted && !root.peerServing && !daemon.running)
+          daemon.running = true
+      })
+    }
+  }
+
+  Process {
+    id: discoverProcess
+    running: false
+    command: ["python3", root.helperPath, "discover"]
+    stdout: StdioCollector {
+      id: discoverStdout
+      waitForEnd: true
+      onStreamFinished: {
+        root.refreshing = false
+        if (text) root.applyStatus(text, "discover")
+      }
+    }
+    onExited: root.refreshing = false
   }
 
   Timer {
@@ -164,21 +237,23 @@ Item {
     repeat: true
     running: !root.passive
     triggeredOnStart: true
-    onTriggered: {
-      root.refresh()
-    }
+    onTriggered: root.discover()
   }
 
   Component.onCompleted: {
-    if (!root.passive) {
-      root.refresh()
+    if (!passive) {
+      mkdirProcess.running = true
+      Qt.callLater(function() {
+        if (statusFile) statusFile.reload()
+        root.discover()
+      })
     }
   }
 
   Component.onDestruction: {
-    if (serveProcess.running) {
-      serveProcess.running = false
-    }
-    Quickshell.exec([root.helperPath, "cleanup"])
+    daemonWanted = false
+    if (daemon.running) daemon.running = false
+    if (discoverProcess.running) discoverProcess.running = false
+    Quickshell.execDetached(["python3", root.helperPath, "cleanup"])
   }
 }

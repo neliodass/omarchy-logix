@@ -34,22 +34,6 @@ BarWidget {
     mx.refresh()
   }
 
-  readonly property bool ipcOwner: {
-    var win = button.QsWindow ? button.QsWindow.window : null
-    var mine = win && win.screen ? win.screen : null
-    var screens = Quickshell.screens
-    var count = screens && screens.length ? screens.length : 0
-    if (!mine || count === 0) return count <= 1
-    var best = screens[0]
-    for (var i = 1; i < count; i++) {
-      var screen = screens[i]
-      if (!screen) continue
-      if (screen.x < best.x || (screen.x === best.x && screen.y < best.y))
-        best = screen
-    }
-    return mine.name === best.name
-  }
-
   function injectPanel() {
     var target = panelLoader.item
     if (!target) return
@@ -109,7 +93,6 @@ BarWidget {
   }
 
   IpcHandler {
-    enabled: root.ipcOwner
     target: "io.openlogi.omarchy"
 
     function refresh(): void { root.refresh() }
