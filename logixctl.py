@@ -353,6 +353,8 @@ def dispatch_action(action_id: str) -> None:
         switch_workspace("e+1")
     elif action_id in ("WorkspacePrev", "PrevWorkspace"):
         switch_workspace("e-1")
+    elif action_id in ("ToggleScratchpad", "Scratchpad", "ToggleSpecialWorkspace", "SpecialWorkspace"):
+        run_hyprctl_eval("hl.dsp.workspace.toggle_special()")
     elif action_id in ("ToggleMaximize", "MaximizeWindow", "Fullscreen"):
         run_hyprctl_eval("hl.dsp.window.fullscreen()")
     elif action_id in ("CloseWindow",):
@@ -572,6 +574,10 @@ def action_label(act_id: str) -> str:
         "NextWorkspace": "Next Workspace",
         "WorkspacePrev": "Previous Workspace",
         "PrevWorkspace": "Previous Workspace",
+        "ToggleScratchpad": "Toggle Scratchpad",
+        "Scratchpad": "Toggle Scratchpad",
+        "ToggleSpecialWorkspace": "Toggle Scratchpad",
+        "SpecialWorkspace": "Toggle Scratchpad",
         "FocusNextWindow": "Tile Right",
         "TileRight": "Tile Right",
         "FocusPrevWindow": "Tile Left",

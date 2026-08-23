@@ -43,7 +43,8 @@ var AVAILABLE_ACTIONS = [
   { id: "TileRight", label: "Tile Right / Focus Right", category: "Window", icon: "chevron_right" },
   { id: "TileUp", label: "Tile Up / Focus Up", category: "Window", icon: "expand_less" },
   { id: "TileDown", label: "Tile Down / Focus Down", category: "Window", icon: "expand_more" },
-  { id: "ShowDesktop", label: "Show Desktop / Special", category: "Window", icon: "desktop_windows" },
+  { id: "ShowDesktop", label: "Show Desktop", category: "Window", icon: "desktop_windows" },
+  { id: "ToggleScratchpad", label: "Toggle Scratchpad / Special Workspace", category: "Window", icon: "layers" },
   { id: "VolumeUp", label: "Volume Up", category: "Media", icon: "volume_up" },
   { id: "VolumeDown", label: "Volume Down", category: "Media", icon: "volume_down" },
   { id: "Mute", label: "Mute Audio", category: "Media", icon: "volume_off" },
@@ -74,7 +75,10 @@ function normalizeActionId(id) {
     "FocusNextWindow": "TileRight",
     "FocusPrevWindow": "TileLeft",
     "FocusUpWindow": "TileUp",
-    "FocusDownWindow": "TileDown"
+    "FocusDownWindow": "TileDown",
+    "Scratchpad": "ToggleScratchpad",
+    "SpecialWorkspace": "ToggleScratchpad",
+    "ToggleSpecialWorkspace": "ToggleScratchpad"
   }
   return map[id] || id
 }
