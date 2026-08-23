@@ -324,32 +324,24 @@ def save_logix_config(data: dict) -> None:
 # System Actions & Dispatch Engine for Omarchy 4.0 / Hyprland
 # ----------------------------------------------------------------------
 
-def get_cursor_pos() -> Tuple[Optional[int], Optional[int]]:
-    try:
-        cur = json.loads(subprocess.check_output(["hyprctl", "cursorpos", "-j"]))
-        return cur.get("x"), cur.get("y")
-    except Exception:
-        return None, None
+def switch_workspace(direction: str) -> None:
+    def _run():
+        try:
+            cur = json.loads(subprocess.check_output(["hyprctl", "cursorpos", "-j"]))
+            cx, cy = cur.get("x"), cur.get("y")
+        except Exception:
+            cx, cy = None, None
+
+        subprocess.run(["hyprctl", "eval", f'hl.dispatch(hl.dsp.focus({{ workspace = "{direction}" }}))'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if cx is not None and cy is not None:
+            time.sleep(0.03)
+            subprocess.run(["hyprctl", "eval", f'hl.dispatch(hl.dsp.cursor.move({{ x = {cx}, y = {cy} }}))'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    import threading
+    threading.Thread(target=_run, daemon=True).start()
 
 
-def restore_cursor_pos(cx: Optional[int], cy: Optional[int], delay: float = 0.04) -> None:
-    if cx is None or cy is None:
-        return
-    cmd = f"import time, subprocess; time.sleep({delay}); subprocess.run(['hyprctl', 'eval', 'hl.dispatch(hl.dsp.cursor.move({{ x = {cx}, y = {cy} }}))'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)"
-    subprocess.Popen(["python3", "-c", cmd])
-
-
-def switch_workspace(direction: str, saved_pos: Optional[Tuple[Optional[int], Optional[int]]] = None) -> None:
-    if saved_pos and saved_pos[0] is not None and saved_pos[1] is not None:
-        cx, cy = saved_pos
-    else:
-        cx, cy = get_cursor_pos()
-
-    run_hyprctl_eval(f'hl.dsp.focus({{ workspace = "{direction}" }})')
-    restore_cursor_pos(cx, cy)
-
-
-def dispatch_action(action_id: str, cursor_pos: Optional[Tuple[Optional[int], Optional[int]]] = None) -> None:
+def dispatch_action(action_id: str) -> None:
     if not action_id or action_id == "None":
         return
 
@@ -358,9 +350,9 @@ def dispatch_action(action_id: str, cursor_pos: Optional[Tuple[Optional[int], Op
     elif action_id in ("ToggleOverview", "Overview", "MissionControl"):
         subprocess.Popen(["omarchy-shell", "overview", "toggle"])
     elif action_id in ("WorkspaceNext", "NextWorkspace"):
-        switch_workspace("e+1", cursor_pos)
+        switch_workspace("e+1")
     elif action_id in ("WorkspacePrev", "PrevWorkspace"):
-        switch_workspace("e-1", cursor_pos)
+        switch_workspace("e-1")
     elif action_id in ("ToggleMaximize", "MaximizeWindow", "Fullscreen"):
         run_hyprctl_eval("hl.dsp.window.fullscreen()")
     elif action_id in ("CloseWindow",):
@@ -952,7 +944,6 @@ def serve_daemon() -> None:
                                     if cid != 0:
                                         # Button DOWN
                                         active_cid = cid
-                                        gesture_start_pos = get_cursor_pos()
                                         acc_dx = 0
                                         acc_dy = 0
                                         skip_first_raw = True
@@ -978,7 +969,7 @@ def serve_daemon() -> None:
                                             act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("HapticPanel", "GestureButton") else "None")
                                             if isinstance(act, dict):
                                                 act = act.get("action", "None")
-                                            dispatch_action(act, gesture_start_pos)
+                                            dispatch_action(act)
                                         else:
                                             # Swipe Gesture / Quick flick direction
                                             angle_deg = math.degrees(math.atan2(acc_dy, acc_dx)) % 360
@@ -995,10 +986,9 @@ def serve_daemon() -> None:
                                             gact = gmap.get(gdir, f"Tile{gdir}")
                                             if isinstance(gact, dict):
                                                 gact = gact.get("action", f"Tile{gdir}")
-                                            dispatch_action(gact, gesture_start_pos)
+                                            dispatch_action(gact)
 
                                         active_cid = None
-                                        gesture_start_pos = None
                                 elif func == 1 and active_cid is not None:
                                     # Raw XY accumulation while button is held
                                     if skip_first_raw:

@@ -15,7 +15,7 @@ PanelWindow {
   property var activeDevice: service ? service.selectedDevice : null
   property string highlightedSlot: ""
   property bool open: false
-  property var targetScreen: null
+  property var targetScreen: (Quickshell.screens && Quickshell.screens.length > 0) ? Quickshell.screens[0] : null
   screen: targetScreen
 
   property real ringCenterX: 960
