@@ -762,10 +762,10 @@ def is_daemon_running() -> bool:
     if not lock_path.exists():
         return False
     try:
-        f = open(lock_path, "r")
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        f.close()
+        fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
         return False
     except (OSError, IOError):
         return True
@@ -787,7 +787,7 @@ def serve_daemon() -> None:
     lock_path = rdir / "logixctl.lock"
 
     try:
-        lock_fd = open(lock_path, "w")
+        lock_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o644)
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except (OSError, IOError):
         sys.exit(0)
