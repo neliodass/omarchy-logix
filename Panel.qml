@@ -248,7 +248,7 @@ Panel {
             width: parent.width
             spacing: 6
 
-            Row {
+            RowLayout {
               width: parent.width
               Text {
                 text: "SmartShift (Ratchet Wheel)"
@@ -256,8 +256,8 @@ Panel {
                 font.pixelSize: 11
                 font.bold: true
               }
+              Item { Layout.fillWidth: true }
               Text {
-                anchors.right: parent.right
                 text: device && device.smartshift ? device.smartshift.mode.toUpperCase() : "AUTO"
                 color: root.accent
                 font.pixelSize: 11
@@ -295,8 +295,9 @@ Panel {
                     anchors.fill: parent
                     onClicked: {
                       if (device) {
-                        var thresh = device.smartshift ? device.smartshift.threshold : 12
-                        mx.setSmartShift(device.id, modelData.id, thresh)
+                        var thresh = device.smartshift && device.smartshift.threshold !== undefined ? device.smartshift.threshold : 10
+                        var torq = device.smartshift && device.smartshift.torque !== undefined ? device.smartshift.torque : 75
+                        mx.setSmartShift(device.id, modelData.id, thresh, torq)
                       }
                     }
                   }

@@ -867,16 +867,30 @@ Item {
                   // SmartShift Settings
                   Rectangle {
                     width: parent.width
-                    height: 120
+                    height: 250
                     radius: 8
                     color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
                     Column {
                       anchors.fill: parent
                       anchors.margins: 14
-                      spacing: 10
+                      spacing: 12
 
-                      Text { text: "SmartShift Ratchet Wheel"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
+                      RowLayout {
+                        width: parent.width
+                        Text { text: "MagSpeed SmartShift & Ratchet Wheel"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                          text: {
+                            var m = device && device.smartshift ? device.smartshift.mode : "auto"
+                            if (m === "freewheel") return "Always Free Spin"
+                            if (m === "ratchet") return "Always Ratchet"
+                            return "Smart Auto-Switch"
+                          }
+                          color: root.accent
+                          font.bold: true
+                        }
+                      }
 
                       RowLayout {
                         spacing: 10
@@ -891,10 +905,77 @@ Item {
                             selected: device && device.smartshift && device.smartshift.mode === modelData.id
                             onClicked: {
                               if (device) {
-                                var thresh = device.smartshift ? device.smartshift.threshold : 12
-                                mx.setSmartShift(device.id, modelData.id, thresh)
+                                var thresh = device.smartshift && device.smartshift.threshold !== undefined ? device.smartshift.threshold : 10
+                                var torq = device.smartshift && device.smartshift.torque !== undefined ? device.smartshift.torque : 75
+                                mx.setSmartShift(device.id, modelData.id, thresh, torq)
                                 root.showToast("SmartShift set to " + modelData.label)
                               }
+                            }
+                          }
+                        }
+                      }
+
+                      // Auto-Disengage Sensitivity Slider (only in Auto mode)
+                      Column {
+                        width: parent.width
+                        spacing: 4
+                        opacity: (device && device.smartshift && device.smartshift.mode === "auto") ? 1.0 : 0.4
+                        enabled: device && device.smartshift && device.smartshift.mode === "auto"
+
+                        RowLayout {
+                          width: parent.width
+                          Text { text: "Próg przełączania na Free Spin (Czułość)"; color: root.foreground; font.pixelSize: 11; font.bold: true }
+                          Item { Layout.fillWidth: true }
+                          Text {
+                            text: (device && device.smartshift && device.smartshift.threshold !== undefined ? device.smartshift.threshold : 10) + " (prędkość obrotu)"
+                            color: root.accent
+                            font.pixelSize: 11
+                          }
+                        }
+                        Slider {
+                          width: parent.width
+                          from: 1
+                          to: 35
+                          stepSize: 1
+                          value: device && device.smartshift && device.smartshift.threshold !== undefined ? device.smartshift.threshold : 10
+                          onMoved: {
+                            if (device) {
+                              var curMode = device.smartshift ? device.smartshift.mode : "auto"
+                              var curTorq = device.smartshift && device.smartshift.torque !== undefined ? device.smartshift.torque : 75
+                              mx.setSmartShift(device.id, curMode, Math.round(value), curTorq)
+                            }
+                          }
+                        }
+                      }
+
+                      // Ratchet Force / Torque Slider (in Ratchet & Auto modes)
+                      Column {
+                        width: parent.width
+                        spacing: 4
+                        opacity: (device && device.smartshift && device.smartshift.mode === "freewheel") ? 0.4 : 1.0
+                        enabled: !device || !device.smartshift || device.smartshift.mode !== "freewheel"
+
+                        RowLayout {
+                          width: parent.width
+                          Text { text: "Siła oporu zapadki MagSpeed (Ratchet Force)"; color: root.foreground; font.pixelSize: 11; font.bold: true }
+                          Item { Layout.fillWidth: true }
+                          Text {
+                            text: (device && device.smartshift && device.smartshift.torque !== undefined ? device.smartshift.torque : 75) + "%"
+                            color: root.accent
+                            font.pixelSize: 11
+                          }
+                        }
+                        Slider {
+                          width: parent.width
+                          from: 1
+                          to: 100
+                          stepSize: 1
+                          value: device && device.smartshift && device.smartshift.torque !== undefined ? device.smartshift.torque : 75
+                          onMoved: {
+                            if (device) {
+                              var curMode = device.smartshift ? device.smartshift.mode : "auto"
+                              var curThresh = device.smartshift && device.smartshift.threshold !== undefined ? device.smartshift.threshold : 10
+                              mx.setSmartShift(device.id, curMode, curThresh, Math.round(value))
                             }
                           }
                         }

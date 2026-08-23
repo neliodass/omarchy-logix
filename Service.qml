@@ -152,13 +152,18 @@ Item {
     writeCmd("set_dpi", { dpi: dpi })
   }
 
-  function setSmartShift(deviceId, mode, threshold) {
+  function setSmartShift(deviceId, mode, threshold, torque) {
     updateDeviceInMemory(deviceId, function(d) {
       if (!d.smartshift) d.smartshift = {}
-      d.smartshift.mode = mode
-      d.smartshift.threshold = threshold
+      if (mode !== undefined && mode !== null) d.smartshift.mode = mode
+      if (threshold !== undefined && threshold !== null) d.smartshift.threshold = threshold
+      if (torque !== undefined && torque !== null) d.smartshift.torque = torque
     })
-    writeCmd("set_smartshift", { mode: mode, threshold: threshold })
+    var dev = selectedDevice
+    var curThresh = threshold !== undefined && threshold !== null ? threshold : (dev && dev.smartshift && dev.smartshift.threshold !== undefined ? dev.smartshift.threshold : 10)
+    var curTorque = torque !== undefined && torque !== null ? torque : (dev && dev.smartshift && dev.smartshift.torque !== undefined ? dev.smartshift.torque : 75)
+    var curMode = mode || (dev && dev.smartshift ? dev.smartshift.mode : "auto")
+    writeCmd("set_smartshift", { mode: curMode, threshold: curThresh, torque: curTorque })
   }
 
   function setScroll(deviceId, invertY, invertThumb, hires) {

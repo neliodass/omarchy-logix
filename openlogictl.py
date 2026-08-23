@@ -671,8 +671,9 @@ def apply_device_update(device_id: str, updates: dict) -> dict:
         if "smartshift" in updates:
             ss = updates["smartshift"]
             mode = ss.get("mode", "auto") if isinstance(ss, dict) else str(ss)
-            thresh = ss.get("threshold", 12) if isinstance(ss, dict) else 12
-            apply_hardware_smartshift(hpath, mode, thresh)
+            thresh = int(ss.get("threshold", 10)) if isinstance(ss, dict) else 10
+            torque = int(ss.get("torque", 75)) if isinstance(ss, dict) else 75
+            apply_hardware_smartshift(hpath, mode, thresh, torque)
 
     return get_full_status()
 
