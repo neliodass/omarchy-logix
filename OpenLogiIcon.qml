@@ -1,16 +1,16 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
-import qs.Ui
 
 Item {
   id: root
 
-  property int iconSize: 18
+  property int iconSize: Style.bar.iconCanvas
   property color color: Color.foreground
   property color cutoutColor: Color.background
-  property color badgeColor: Color.urgent
   property bool lowBattery: false
   property bool isKeyboard: false
+  property color badgeColor: Color.urgent
 
   implicitWidth: iconSize
   implicitHeight: iconSize
@@ -18,19 +18,20 @@ Item {
   Canvas {
     id: canvas
     anchors.fill: parent
-    antialiasing: true
+    renderTarget: Canvas.Image
 
     onPaint: {
       var ctx = getContext("2d")
       ctx.reset()
-      ctx.clearRect(0, 0, width, height)
 
-      var s = Math.min(width, height)
+      var w = width
+      var h = height
+      var s = Math.min(w, h)
       var pad = s * 0.1
-      var w = s - pad * 2
-      var h = s - pad * 2
       var x = pad
       var y = pad
+      w -= pad * 2
+      h -= pad * 2
 
       ctx.strokeStyle = root.color
       ctx.fillStyle = root.color
@@ -39,18 +40,18 @@ Item {
       ctx.lineJoin = "round"
 
       if (root.isKeyboard) {
-        // Draw keyboard shape
-        var r = s * 0.12
+        // Draw MX Keyboard outline
         var kw = w
-        var kh = h * 0.75
-        var ky = y + h * 0.12
+        var kh = h * 0.65
+        var ky = y + (h - kh) / 2
+        var kr = 3
 
         ctx.beginPath()
-        ctx.roundRect(x, ky, kw, kh, r)
+        ctx.rect(x, ky, kw, kh)
         ctx.stroke()
 
-        // Key rows / dots
-        var dotR = s * 0.04
+        // Key matrix dots
+        var dotR = Math.max(1, s * 0.04)
         ctx.beginPath()
         ctx.arc(x + kw * 0.3, ky + kh * 0.35, dotR, 0, 2 * Math.PI)
         ctx.arc(x + kw * 0.5, ky + kh * 0.35, dotR, 0, 2 * Math.PI)
@@ -84,7 +85,7 @@ Item {
         var wy = y + h * 0.18
 
         ctx.beginPath()
-        ctx.roundRect(wx, wy, ww, wh, ww * 0.5)
+        ctx.rect(wx, wy, ww, wh)
         ctx.fill()
 
         // Smart Ring / Thumb button accent arc
@@ -111,21 +112,12 @@ Item {
         ctx.beginPath()
         ctx.arc(bx, by, badgeR, 0, 2 * Math.PI)
         ctx.fill()
-
-        // Exclamation mark
-        ctx.fillStyle = "#ffffff"
-        ctx.fillRect(bx - 0.75, by - badgeR * 0.55, 1.5, badgeR * 0.65)
-        ctx.beginPath()
-        ctx.arc(bx, by + badgeR * 0.45, 0.8, 0, 2 * Math.PI)
-        ctx.fill()
       }
     }
   }
 
   onColorChanged: canvas.requestPaint()
   onCutoutColorChanged: canvas.requestPaint()
-  onBadgeColorChanged: canvas.requestPaint()
   onLowBatteryChanged: canvas.requestPaint()
   onIsKeyboardChanged: canvas.requestPaint()
-  onIconSizeChanged: canvas.requestPaint()
 }

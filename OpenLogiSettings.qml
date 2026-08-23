@@ -83,12 +83,11 @@ Item {
 
   FloatingWindow {
     id: window
-    title: "OpenLogi Settings — " + (device ? Model.plainHidText(device.name) : "Logitech")
+    title: "OpenLogi Settings — " + (device ? Model.plainHidText(device.name) : "Logitech MX")
     color: root.background
     implicitWidth: 860
     implicitHeight: 680
     minimumSize: Qt.size(640, 520)
-    visible: false
 
     onVisibleChanged: {
       if (!visible && !root.closingFromHost && root.shell && typeof root.shell.hide === "function")
@@ -240,9 +239,8 @@ Item {
                         font.bold: true
                         font.pixelSize: 13
                       }
-                      Item { width: 1; height: 1 }
+                      Item { width: Math.max(0, parent.width - 260); height: 1 }
                       Text {
-                        anchors.right: parent.right
                         text: "Selected: " + root.selectedSlotId
                         color: root.accent
                         font.bold: true
@@ -711,8 +709,9 @@ Item {
 
                       Row {
                         width: parent.width
-                        Text { text: "Sensor Sensitivity (DPI)"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
-                        Text { text: (device && device.dpi ? device.dpi : 1000) + " DPI"; color: root.accent; font.bold: true; anchors.right: parent.right }
+                        Text { id: ptrLabel; text: "Sensor Sensitivity (DPI)"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
+                        Item { width: Math.max(0, parent.width - ptrLabel.width - ptrVal.width); height: 1 }
+                        Text { id: ptrVal; text: (device && device.dpi ? device.dpi : 1000) + " DPI"; color: root.accent; font.bold: true }
                       }
 
                       Slider {
@@ -752,7 +751,7 @@ Item {
                           ]
                           delegate: Button {
                             text: modelData.label
-                            highlighted: device && device.smartshift && device.smartshift.mode === modelData.id
+                            selected: device && device.smartshift && device.smartshift.mode === modelData.id
                             onClicked: {
                               if (device) {
                                 var thresh = device.smartshift ? device.smartshift.threshold : 12
