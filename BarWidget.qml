@@ -27,6 +27,9 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
   readonly property color iconColor: {
     if (!mx.hasDevice) return Qt.darker(barForeground, 1.55)
     if (mx.batteryLow) return bar && bar.urgent ? bar.urgent : Color.urgent
