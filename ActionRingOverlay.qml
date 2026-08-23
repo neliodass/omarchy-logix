@@ -60,8 +60,21 @@ PanelWindow {
     }
   }
 
+  property int ringVersion: 0
+
+  Connections {
+    target: root.service
+    function onDevicesChanged() {
+      root.ringVersion++
+    }
+  }
+
   function showRing() {
     resolveService()
+    if (service && typeof service.refresh === "function") {
+      service.refresh()
+    }
+    ringVersion++
     cursorProbe.running = true
     root.open = true
     Qt.callLater(function() {
@@ -80,7 +93,8 @@ PanelWindow {
   }
 
   function executeSlot(slotId) {
-    var slots = Model.getActionRingSlots(activeDevice)
+    var dev = root.activeDevice
+    var slots = Model.getActionRingSlots(dev)
     for (var i = 0; i < slots.length; i++) {
       if (slots[i].id === slotId) {
         var act = slots[i].action
@@ -169,7 +183,11 @@ PanelWindow {
 
       // 8 Action Slots
       Repeater {
-        model: Model.getActionRingSlots(root.activeDevice)
+        model: {
+          var _ = root.ringVersion
+          var dev = root.activeDevice
+          return Model.getActionRingSlots(dev)
+        }
         delegate: Item {
           id: node
           property real angleRad: (modelData.angle - 90) * Math.PI / 180
