@@ -34,6 +34,10 @@ BarWidget {
     mx.refresh()
   }
 
+  function showActionRing() {
+    if (overlayLoader.item) overlayLoader.item.showRing()
+  }
+
   function injectPanel() {
     var target = panelLoader.item
     if (!target) return
@@ -42,6 +46,11 @@ BarWidget {
     if ("anchorItem" in target) target.anchorItem = button
     if ("hostWidget" in target) target.hostWidget = root
     if ("mx" in target) target.mx = mx
+
+    if (overlayLoader.item) {
+      if ("service" in overlayLoader.item) overlayLoader.item.service = mx
+      if ("shell" in overlayLoader.item && root.bar) overlayLoader.item.shell = root.bar.shell
+    }
   }
 
   implicitWidth: button.implicitWidth
@@ -92,6 +101,16 @@ BarWidget {
     }
   }
 
+  Loader {
+    id: overlayLoader
+    active: true
+    source: Qt.resolvedUrl("ActionRingOverlay.qml")
+    onLoaded: {
+      root.injectPanel()
+      Qt.callLater(root.injectPanel)
+    }
+  }
+
   IpcHandler {
     target: "io.openlogi.omarchy"
 
@@ -101,6 +120,7 @@ BarWidget {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
+    function showActionRing(): void { root.showActionRing() }
   }
 
   BarIconButton {

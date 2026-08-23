@@ -5,13 +5,12 @@ import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 
-Scope {
+Item {
   id: root
 
   property var shell: null
   property var service: null
   property var activeDevice: service ? service.selectedDevice : null
-  property bool active: false
   property string highlightedSlot: ""
 
   function resolveService() {
@@ -24,24 +23,26 @@ Scope {
 
   function showRing() {
     resolveService()
-    root.active = true
     overlayWindow.visible = true
   }
 
   function hideRing() {
-    root.active = false
     overlayWindow.visible = false
     highlightedSlot = ""
+  }
+
+  function toggleRing() {
+    if (overlayWindow.visible) hideRing()
+    else showRing()
   }
 
   function executeSlot(slotId) {
     var slots = Model.getActionRingSlots(activeDevice)
     for (var i = 0; i < slots.length; i++) {
       if (slots[i].id === slotId) {
-        // Trigger action via Omarchy shell
         var act = slots[i].action
-        if (shell && typeof shell.dispatchAction === "function") {
-          shell.dispatchAction(act)
+        if (service && typeof service.writeCmd === "function") {
+          service.writeCmd("dispatch", { action: act })
         }
         break
       }
@@ -51,8 +52,9 @@ Scope {
 
   FloatingWindow {
     id: overlayWindow
-    width: 380
-    height: 380
+    title: "Smart Action Ring"
+    implicitWidth: 420
+    implicitHeight: 420
     visible: false
     color: "transparent"
 
@@ -100,10 +102,10 @@ Scope {
         delegate: Item {
           id: node
           property real angleRad: (modelData.angle - 90) * Math.PI / 180
-          property real radius: 130
-          x: 190 + radius * Math.cos(angleRad) - width / 2
-          y: 190 + radius * Math.sin(angleRad) - height / 2
-          width: 82
+          property real radius: 140
+          x: 210 + radius * Math.cos(angleRad) - width / 2
+          y: 210 + radius * Math.sin(angleRad) - height / 2
+          width: 86
           height: 48
 
           Rectangle {
