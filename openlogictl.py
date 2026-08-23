@@ -483,6 +483,8 @@ def scan_hidraw() -> Tuple[List[dict], List[dict]]:
         has_smartshift = kind == "mouse"
         has_hires = kind == "mouse"
 
+        is_rw = os.access(hidraw_path, os.R_OK | os.W_OK)
+
         devices.append({
             "id": dev_id,
             "name": clean_name,
@@ -495,7 +497,7 @@ def scan_hidraw() -> Tuple[List[dict], List[dict]]:
             "unitId": dev_id,
             "protocol": "HID++ 2.0 / OpenLogi",
             "connection": conn,
-            "accessible": True,
+            "accessible": is_rw,
             "battery": battery,
             "capabilities": {
                 "action_ring": has_action_ring,
@@ -976,6 +978,7 @@ def main() -> None:
     sub.add_parser("serve", help="Run background daemon")
     sub.add_parser("runtime-dir", help="Print runtime directory")
     sub.add_parser("cleanup", help="Clean up runtime files")
+    sub.add_parser("fix-permissions", help="Install udev rule and grant user permissions via pkexec")
 
     write_cmd = sub.add_parser("write-cmd", help="Write a command to the queue")
     write_cmd.add_argument("type", help="Command type")
@@ -1001,6 +1004,14 @@ def main() -> None:
         except OSError:
             pass
         emit({"ok": True})
+    elif args.subcommand == "fix-permissions":
+        rule = 'KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="046d", MODE="0666", TAG+="uaccess"\nKERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="*046D*", MODE="0666", TAG+="uaccess"\n'
+        script = f"printf '{rule}' > /etc/udev/rules.d/99-openlogi-hidpp.rules && udevadm control --reload-rules && udevadm trigger --subsystem-match=hidraw"
+        try:
+            res = subprocess.run(["pkexec", "sh", "-c", script])
+            emit({"ok": res.returncode == 0})
+        except Exception as e:
+            emit({"ok": False, "error": str(e)})
     elif args.subcommand == "write-cmd":
         rdir = get_runtime_dir()
         try:

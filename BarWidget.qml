@@ -214,6 +214,51 @@ Panel {
             }
           }
 
+          // Permissions Warning Banner
+          Rectangle {
+            visible: !!(device && device.accessible === false)
+            width: parent.width
+            height: 48
+            radius: 8
+            color: Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.15)
+            border.color: root.urgent
+            border.width: 1
+
+            RowLayout {
+              anchors.fill: parent
+              anchors.margins: 8
+              spacing: 8
+
+              Text {
+                text: "⚠️"
+                font.pixelSize: 18
+              }
+
+              Column {
+                Layout.fillWidth: true
+                Text {
+                  text: "Permissions Required"
+                  color: root.urgent
+                  font.pixelSize: 11
+                  font.bold: true
+                }
+                Text {
+                  text: "Click to grant uaccess rule"
+                  color: root.dim
+                  font.pixelSize: 10
+                }
+              }
+
+              Button {
+                text: "Fix"
+                onClicked: {
+                  Quickshell.execDetached(["python3", root.mx.helperPath, "fix-permissions"])
+                  Qt.callLater(root.refresh)
+                }
+              }
+            }
+          }
+
           // Smart Ring / Action Ring Banner
           Rectangle {
             visible: root.isMouse && !!(device && device.capabilities && device.capabilities.action_ring)
