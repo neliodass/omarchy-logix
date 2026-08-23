@@ -104,7 +104,7 @@ def open_hidraw(path: str) -> Optional[int]:
         return None
 
 
-def hidpp_call(fd: int, feat_idx: int, func_idx: int, params: bytes = b"", dev_idx: int = 0xFF, timeout: float = 0.15) -> Optional[bytes]:
+def hidpp_call(fd: int, feat_idx: int, func_idx: int, params: bytes = b"", dev_idx: int = 0xFF, timeout: float = 0.4) -> Optional[bytes]:
     if fd is None or fd < 0:
         return None
     req = bytearray(20)
@@ -138,15 +138,16 @@ def hidpp_call(fd: int, feat_idx: int, func_idx: int, params: bytes = b"", dev_i
 
 def get_feature_index(fd: int, feature_id: int) -> Optional[int]:
     req_params = struct.pack(">H", feature_id)
-    res = hidpp_call(fd, 0x00, 0x00, req_params)
+    res = hidpp_call(fd, 0x00, 0x00, req_params, timeout=0.4)
     if res and len(res) >= 5:
         feat_idx = res[4]
         return feat_idx if feat_idx != 0 else None
     return None
 
 
-def set_button_diversion(fd: int, cid: int, divert: bool = True, raw_xy: bool = True) -> bool:
-    feat_idx = get_feature_index(fd, 0x1B04)
+def set_button_diversion(fd: int, cid: int, divert: bool = True, raw_xy: bool = True, feat_idx: Optional[int] = None) -> bool:
+    if feat_idx is None:
+        feat_idx = get_feature_index(fd, 0x1B04)
     if feat_idx is None:
         return False
     p = bytearray(16)
@@ -156,7 +157,7 @@ def set_button_diversion(fd: int, cid: int, divert: bool = True, raw_xy: bool = 
         p[2] = 0x33 if raw_xy else 0x03  # divert + raw_xy streaming
     else:
         p[2] = 0x32 if raw_xy else 0x02  # clear divert
-    res = hidpp_call(fd, feat_idx, 0x03, bytes(p))
+    res = hidpp_call(fd, feat_idx, 0x03, bytes(p), timeout=0.4)
     return res is not None
 
 
@@ -869,8 +870,9 @@ def serve_daemon() -> None:
             if hid_fd is not None:
                 reprog_idx = get_feature_index(hid_fd, 0x1B04)
                 if reprog_idx is not None:
-                    for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
-                        set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
+                    for cid in [0x01A0, 0x00C3, 0x00C4]:
+                        set_button_diversion(hid_fd, cid, divert=True, raw_xy=True, feat_idx=reprog_idx)
+                        time.sleep(0.02)
 
     connect_device()
 
