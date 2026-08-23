@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
@@ -15,6 +16,9 @@ PanelWindow {
   property string highlightedSlot: ""
   property bool open: false
 
+  property real ringCenterX: 960
+  property real ringCenterY: 540
+
   function resolveService() {
     if (service || !shell) return
     if (typeof shell.ensureService === "function")
@@ -23,8 +27,42 @@ PanelWindow {
       service = shell.serviceFor("io.openlogi.omarchy")
   }
 
+  function updatePosition(x, y) {
+    if (x !== undefined && y !== undefined && x > 0 && y > 0) {
+      // Clamp within screen boundaries so the wheel (440x440) is always fully visible
+      var halfW = 230
+      var halfH = 230
+      var winW = root.width > 0 ? root.width : 1920
+      var winH = root.height > 0 ? root.height : 1080
+      var minX = halfW + 10
+      var maxX = winW - halfW - 10
+      var minY = halfH + 10
+      var maxY = winH - halfH - 10
+
+      ringCenterX = Math.max(minX, Math.min(maxX, x))
+      ringCenterY = Math.max(minY, Math.min(maxY, y))
+    }
+  }
+
+  Process {
+    id: cursorProbe
+    command: ["hyprctl", "cursorpos", "-j"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var pos = JSON.parse(text)
+          if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
+            root.updatePosition(pos.x, pos.y)
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
   function showRing() {
     resolveService()
+    cursorProbe.running = true
     root.open = true
     Qt.callLater(function() {
       if (keyCatcher) keyCatcher.forceActiveFocus()
@@ -77,15 +115,20 @@ PanelWindow {
 
       MouseArea {
         anchors.fill: parent
+        hoverEnabled: true
         onClicked: root.hideRing()
       }
     }
 
-    // Center Radial Wheel
+    // Radial Wheel Container positioned at cursor coordinates
     Item {
-      anchors.centerIn: parent
+      x: root.ringCenterX - width / 2
+      y: root.ringCenterY - height / 2
       width: 440
       height: 440
+
+      Behavior on x { NumberAnimation { duration: 80; easing.type: Easing.OutQuad } }
+      Behavior on y { NumberAnimation { duration: 80; easing.type: Easing.OutQuad } }
 
       // Center Radial Hub
       Rectangle {
