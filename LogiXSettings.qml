@@ -214,7 +214,6 @@ Item {
 
               Button {
                 text: "✕"
-                flat: true
                 onClicked: root.close()
               }
             }
