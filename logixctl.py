@@ -324,6 +324,10 @@ def save_logix_config(data: dict) -> None:
 # System Actions & Dispatch Engine for Omarchy 4.0 / Hyprland
 # ----------------------------------------------------------------------
 
+def run_hyprctl_eval(lua_expr: str) -> None:
+    subprocess.Popen(["hyprctl", "eval", f"hl.dispatch({lua_expr})"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def switch_workspace(direction: str) -> None:
     def _run():
         try:
@@ -912,9 +916,15 @@ def serve_daemon() -> None:
             # Check for command spools
             cmd_files = sorted(rdir.glob("cmd-*.json"))
             for cf in cmd_files:
-                process_command(cf)
-                status = get_full_status()
-                write_status_file(status)
+                try:
+                    process_command(cf)
+                    status = get_full_status()
+                    write_status_file(status)
+                except Exception as e:
+                    try:
+                        cf.unlink()
+                    except OSError:
+                        pass
 
             # Reconnection logic if device was closed / not opened
             now = time.time()
