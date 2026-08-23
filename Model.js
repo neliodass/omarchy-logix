@@ -95,12 +95,31 @@ function actionIcon(actionId) {
   return "extension"
 }
 
+var SLOT_ALIASES = {
+  "Slot0": "Top",
+  "Slot1": "TopRight",
+  "Slot2": "Right",
+  "Slot3": "BottomRight",
+  "Slot4": "Bottom",
+  "Slot5": "BottomLeft",
+  "Slot6": "Left",
+  "Slot7": "TopLeft"
+}
+
 function getActionRingSlots(device) {
   var conf = device && device.action_ring && device.action_ring.slots ? device.action_ring.slots : {}
   var result = []
   for (var i = 0; i < ACTION_RING_SLOTS.length; i++) {
     var slotDef = ACTION_RING_SLOTS[i]
     var custom = conf[slotDef.id]
+    if (!custom) {
+      for (var aliasKey in SLOT_ALIASES) {
+        if (SLOT_ALIASES[aliasKey] === slotDef.id && conf[aliasKey]) {
+          custom = conf[aliasKey]
+          break
+        }
+      }
+    }
     var actId = (typeof custom === "string") ? custom : (custom && custom.action ? custom.action : slotDef.defaultAction)
     var actLabel = (custom && custom.label) ? custom.label : actionLabel(actId)
     result.push({

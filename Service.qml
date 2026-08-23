@@ -165,24 +165,37 @@ Item {
       if (!d.action_ring) d.action_ring = { slots: {} }
       if (!d.action_ring.slots) d.action_ring.slots = {}
       d.action_ring.slots[slot] = { action: action, label: label }
+      if (d.config) {
+        if (!d.config.action_ring) d.config.action_ring = { slots: {} }
+        if (!d.config.action_ring.slots) d.config.action_ring.slots = {}
+        d.config.action_ring.slots[slot] = { action: action, label: label }
+      }
     })
-    writeCmd("set_action_ring_slot", { slot: slot, action: action, label: label })
+    writeCmd("set_action_ring_slot", { slot: slot, action: action, label: label }, deviceId)
   }
 
   function setGesture(deviceId, direction, action, label) {
     updateDeviceInMemory(deviceId, function(d) {
       if (!d.gestures) d.gestures = {}
       d.gestures[direction] = { action: action, label: label }
+      if (d.config) {
+        if (!d.config.gestures) d.config.gestures = {}
+        d.config.gestures[direction] = { action: action, label: label }
+      }
     })
-    writeCmd("set_gesture", { direction: direction, action: action, label: label })
+    writeCmd("set_gesture", { direction: direction, action: action, label: label }, deviceId)
   }
 
   function setButton(deviceId, button, action) {
     updateDeviceInMemory(deviceId, function(d) {
       if (!d.buttons) d.buttons = {}
       d.buttons[button] = { action: action }
+      if (d.config) {
+        if (!d.config.buttons) d.config.buttons = {}
+        d.config.buttons[button] = { action: action }
+      }
     })
-    writeCmd("set_button", { button: button, action: action })
+    writeCmd("set_button", { button: button, action: action }, deviceId)
   }
 
   function setGestureDistance(deviceId, distance) {
