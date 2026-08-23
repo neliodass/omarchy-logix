@@ -1,16 +1,23 @@
-// Copyright (C) 2026 OpenLogi & Omarchy Contributors
+// Model.js — OpenLogi Data Models and Helpers
 // MIT License
 
-var HID_AMP_RE = /&/g
-var HID_LT_RE = /</g
-var HID_GT_RE = />/g
+function isMouse(device) {
+  if (!device) return false
+  var k = String(device.kind || "").toLowerCase()
+  var name = String(device.name || "").toLowerCase()
+  return k === "mouse" || name.indexOf("mouse") !== -1 || name.indexOf("master") !== -1 || name.indexOf("anywhere") !== -1
+}
 
-function plainHidText(value) {
-  if (value === undefined || value === null) return ""
-  var text = String(value)
-  if (text.indexOf("&") === -1 && text.indexOf("<") === -1 && text.indexOf(">") === -1)
-    return text
-  return text.replace(HID_AMP_RE, "&amp;").replace(HID_LT_RE, "&lt;").replace(HID_GT_RE, "&gt;")
+function isKeyboard(device) {
+  if (!device) return false
+  var k = String(device.kind || "").toLowerCase()
+  var name = String(device.name || "").toLowerCase()
+  return k === "keyboard" || name.indexOf("keys") !== -1 || name.indexOf("craft") !== -1 || name.indexOf("k780") !== -1
+}
+
+function plainHidText(raw) {
+  if (!raw) return ""
+  return String(raw).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
 function emptyStatus(message) {
@@ -20,7 +27,7 @@ function emptyStatus(message) {
     openlogiRunning: false,
     accessible: false,
     ts: 0,
-    message: message || "",
+    message: String(message || ""),
     devices: [],
     adapters: []
   }
@@ -46,39 +53,11 @@ function parseStatus(raw) {
   }
 }
 
-function isMouse(device) {
-  if (!device) return false
-  var kind = String(device.kind || "").toLowerCase()
-  if (kind === "mouse" || kind === "trackball" || kind === "touchpad") return true
-  return /master|mouse|anywhere|vertical|lift|ergo|trackball|pebble/.test(String(device.name || "").toLowerCase())
-}
-
-function isKeyboard(device) {
-  if (!device) return false
-  var kind = String(device.kind || "").toLowerCase()
-  if (kind.indexOf("key") !== -1 || kind === "keyboard") return true
-  return /key|mechanical|craft|signature/.test(String(device.name || "").toLowerCase())
-}
-
-function deviceMatches(device, needle) {
-  if (!device || needle === undefined || needle === null || String(needle) === "") return false
-  var want = String(needle).toLowerCase()
-  var keys = [device.id, device.unitId, device.serial, device.path, device.name, device.codename]
-  for (var i = 0; i < keys.length; i++) {
-    if (keys[i] !== undefined && keys[i] !== null && String(keys[i]).toLowerCase() === want) return true
-  }
-  if (device.path && String(device.path).split("/").pop().toLowerCase() === want) return true
-  return false
-}
-
-function pickDefaultDevice(devices, preferredId, userPicked) {
-  var list = Array.isArray(devices) ? devices : []
-  if (preferredId) {
+function pickDefaultDevice(list, preferredId, userPicked) {
+  if (!list || !list.length) return null
+  if (userPicked && preferredId) {
     for (var i = 0; i < list.length; i++) {
-      if (deviceMatches(list[i], preferredId)) {
-        if (userPicked === true || !isKeyboard(list[i])) return list[i]
-        break
-      }
+      if (list[i] && String(list[i].id) === String(preferredId)) return list[i]
     }
   }
   for (var j = 0; j < list.length; j++) if (isMouse(list[j]) && list[j].online !== false) return list[j]
@@ -131,6 +110,17 @@ var GESTURE_DIRECTIONS = [
   { id: "Left", label: "Swipe Left", glyph: "←", defaultAction: "TileLeft" },
   { id: "Right", label: "Swipe Right", glyph: "→", defaultAction: "TileRight" },
   { id: "Click", label: "Single Click", glyph: "·", defaultAction: "ShowActionRing" }
+]
+
+// Physical Hardware Buttons
+var HARDWARE_BUTTONS = [
+  { id: "GestureButton", label: "Thumb Gesture Button", icon: "touch_app", defaultAction: "Gestures" },
+  { id: "HapticPanel", label: "Smart Ring / Thumb Rest", icon: "radio_button_checked", defaultAction: "ShowActionRing" },
+  { id: "DpiToggle", label: "Top Mode Button", icon: "speed", defaultAction: "DpiCycle" },
+  { id: "MiddleClick", label: "Scroll Wheel Click", icon: "mouse", defaultAction: "MiddleClick" },
+  { id: "Back", label: "Side Back Button", icon: "arrow_back", defaultAction: "Back" },
+  { id: "Forward", label: "Side Forward Button", icon: "arrow_forward", defaultAction: "Forward" },
+  { id: "Thumbwheel", label: "Horizontal Thumb Wheel", icon: "swap_horiz", defaultAction: "HorizontalScroll" }
 ]
 
 // Available action library for Smart Ring & buttons
@@ -210,6 +200,25 @@ function getGestures(device) {
       action: custom.action || gDef.defaultAction,
       customLabel: custom.label || actionLabel(custom.action || gDef.defaultAction),
       icon: actionIcon(custom.action || gDef.defaultAction)
+    })
+  }
+  return result
+}
+
+function getButtons(device) {
+  var conf = device && device.buttons ? device.buttons : {}
+  var result = []
+  for (var i = 0; i < HARDWARE_BUTTONS.length; i++) {
+    var bDef = HARDWARE_BUTTONS[i]
+    var custom = conf[bDef.id] || {}
+    var actId = custom.action || bDef.defaultAction
+    result.push({
+      id: bDef.id,
+      label: bDef.label,
+      icon: bDef.icon,
+      action: actId,
+      actionLabel: actionLabel(actId),
+      customLabel: custom.label || actionLabel(actId)
     })
   }
   return result

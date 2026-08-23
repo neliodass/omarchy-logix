@@ -124,6 +124,18 @@ Item {
     selectedId = String(id || "")
   }
 
+  function updateDeviceInMemory(deviceId, fn) {
+    var next = []
+    for (var i = 0; i < devices.length; i++) {
+      var d = JSON.parse(JSON.stringify(devices[i]))
+      if (d.id === deviceId) {
+        fn(d)
+      }
+      next.push(d)
+    }
+    devices = next
+  }
+
   function writeCmd(type, payload) {
     if (helperPath === "") return
     var devId = selectedDevice ? selectedDevice.id : ""
@@ -136,30 +148,60 @@ Item {
   }
 
   function setDpi(deviceId, dpi) {
+    updateDeviceInMemory(deviceId, function(d) { d.dpi = dpi })
     writeCmd("set_dpi", { dpi: dpi })
   }
 
   function setSmartShift(deviceId, mode, threshold) {
+    updateDeviceInMemory(deviceId, function(d) {
+      if (!d.smartshift) d.smartshift = {}
+      d.smartshift.mode = mode
+      d.smartshift.threshold = threshold
+    })
     writeCmd("set_smartshift", { mode: mode, threshold: threshold })
   }
 
   function setScroll(deviceId, invertY, invertThumb, hires) {
+    updateDeviceInMemory(deviceId, function(d) {
+      if (!d.scroll) d.scroll = {}
+      d.scroll.invert_y = invertY
+      d.scroll.invert_thumb = invertThumb
+      d.scroll.hires = hires
+    })
     writeCmd("set_scroll", { invert_y: invertY, invert_thumb: invertThumb, hires: hires })
   }
 
   function setActionRing(deviceId, enabled, haptics) {
+    updateDeviceInMemory(deviceId, function(d) {
+      if (!d.action_ring) d.action_ring = { slots: {} }
+      d.action_ring.enabled = enabled
+      d.action_ring.haptics = haptics
+    })
     writeCmd("set_action_ring", { enabled: enabled, haptics: haptics })
   }
 
   function setActionRingSlot(deviceId, slot, action, label) {
+    updateDeviceInMemory(deviceId, function(d) {
+      if (!d.action_ring) d.action_ring = { slots: {} }
+      if (!d.action_ring.slots) d.action_ring.slots = {}
+      d.action_ring.slots[slot] = { action: action, label: label }
+    })
     writeCmd("set_action_ring_slot", { slot: slot, action: action, label: label })
   }
 
   function setGesture(deviceId, direction, action, label) {
+    updateDeviceInMemory(deviceId, function(d) {
+      if (!d.gestures) d.gestures = {}
+      d.gestures[direction] = { action: action, label: label }
+    })
     writeCmd("set_gesture", { direction: direction, action: action, label: label })
   }
 
   function setButton(deviceId, button, action) {
+    updateDeviceInMemory(deviceId, function(d) {
+      if (!d.buttons) d.buttons = {}
+      d.buttons[button] = { action: action }
+    })
     writeCmd("set_button", { button: button, action: action })
   }
 

@@ -11,7 +11,7 @@ Item {
 
   property var shell: null
   property var service: null
-  property string activeTab: "smartring"
+  property string activeTab: "buttons"
   property string selectedSlotId: "Top"
   property string selectedGestureId: "Up"
   property string selectedButtonId: "GestureButton"
@@ -81,11 +81,35 @@ Item {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: Style.font.family
 
+  function currentActionForButton(btnId) {
+    var buttons = Model.getButtons(device)
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i].id === btnId) return buttons[i].action
+    }
+    return ""
+  }
+
+  function currentActionForSlot(slotId) {
+    var slots = Model.getActionRingSlots(device)
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i].id === slotId) return slots[i].action
+    }
+    return ""
+  }
+
+  function currentActionForGesture(gestureId) {
+    var gestures = Model.getGestures(device)
+    for (var i = 0; i < gestures.length; i++) {
+      if (gestures[i].id === gestureId) return gestures[i].action
+    }
+    return ""
+  }
+
   FloatingWindow {
     id: window
     title: "OpenLogi Settings — " + (device ? Model.plainHidText(device.name) : "Logitech MX")
     color: root.background
-    implicitWidth: 860
+    implicitWidth: 880
     implicitHeight: 680
     minimumSize: Qt.size(640, 520)
 
@@ -145,14 +169,14 @@ Item {
               Item { Layout.fillWidth: true }
 
               // Navigation Tabs
-              Row {
+              RowLayout {
                 spacing: 6
 
                 Repeater {
                   model: [
+                    { id: "buttons", label: "Button Remaps" },
                     { id: "smartring", label: "Smart Ring" },
                     { id: "gestures", label: "Gestures" },
-                    { id: "buttons", label: "Button Remaps" },
                     { id: "pointer", label: "DPI & Scroll" },
                     { id: "driver", label: "Driver & Config" }
                   ]
@@ -204,11 +228,221 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: {
-              if (root.activeTab === "smartring") return 0
-              if (root.activeTab === "gestures") return 1
-              if (root.activeTab === "buttons") return 2
+              if (root.activeTab === "buttons") return 0
+              if (root.activeTab === "smartring") return 1
+              if (root.activeTab === "gestures") return 2
               if (root.activeTab === "pointer") return 3
               return 4
+            }
+
+            // TAB 0: Button Remapping (Full view with mapped badges)
+            Item {
+              RowLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 18
+
+                // Physical Buttons List
+                Rectangle {
+                  Layout.preferredWidth: 360
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+                  border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 8
+
+                    Text {
+                      text: "Physical Hardware Buttons"
+                      color: root.foreground
+                      font.bold: true
+                      font.pixelSize: 13
+                    }
+                    Text {
+                      text: "Select a button to view and change its mapped action:"
+                      color: root.dim
+                      font.pixelSize: 10
+                    }
+
+                    ListView {
+                      Layout.fillWidth: true
+                      Layout.fillHeight: true
+                      clip: true
+                      spacing: 6
+                      model: Model.getButtons(device)
+
+                      delegate: Rectangle {
+                        width: ListView.view.width
+                        height: 56
+                        radius: 8
+                        property bool isSelected: root.selectedButtonId === modelData.id
+                        color: isSelected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.15) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                        border.color: isSelected ? root.accent : "transparent"
+                        border.width: isSelected ? 2 : 0
+
+                        RowLayout {
+                          anchors.fill: parent
+                          anchors.leftMargin: 12
+                          anchors.rightMargin: 12
+                          spacing: 10
+
+                          Column {
+                            Layout.fillWidth: true
+                            spacing: 3
+
+                            Text {
+                              text: modelData.label
+                              color: root.foreground
+                              font.bold: true
+                              font.pixelSize: 12
+                            }
+
+                            // Current mapped action badge
+                            RowLayout {
+                              spacing: 4
+                              Text {
+                                text: "Mapped:"
+                                color: root.dim
+                                font.pixelSize: 10
+                              }
+                              Rectangle {
+                                height: 16
+                                width: mappedText.implicitWidth + 8
+                                radius: 3
+                                color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.25)
+
+                                Text {
+                                  id: mappedText
+                                  anchors.centerIn: parent
+                                  text: modelData.actionLabel
+                                  color: root.accent
+                                  font.bold: true
+                                  font.pixelSize: 9
+                                }
+                              }
+                            }
+                          }
+
+                          Text {
+                            text: parent.parent.isSelected ? "●" : "›"
+                            color: parent.parent.isSelected ? root.accent : root.dim
+                            font.bold: true
+                            font.pixelSize: 14
+                          }
+                        }
+
+                        MouseArea {
+                          anchors.fill: parent
+                          onClicked: root.selectedButtonId = modelData.id
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // Target Action list
+                Rectangle {
+                  Layout.fillWidth: true
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+                  border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    RowLayout {
+                      Layout.fillWidth: true
+                      Text {
+                        text: "Action Catalog for [" + root.selectedButtonId + "]"
+                        color: root.accent
+                        font.bold: true
+                        font.pixelSize: 13
+                      }
+                      Item { Layout.fillWidth: true }
+                      Text {
+                        text: "Current: " + Model.actionLabel(root.currentActionForButton(root.selectedButtonId))
+                        color: root.foreground
+                        font.bold: true
+                        font.pixelSize: 11
+                      }
+                    }
+
+                    ListView {
+                      Layout.fillWidth: true
+                      Layout.fillHeight: true
+                      clip: true
+                      spacing: 5
+                      model: Model.AVAILABLE_ACTIONS
+
+                      delegate: Rectangle {
+                        width: ListView.view.width
+                        height: 42
+                        radius: 6
+                        property bool isAssigned: root.currentActionForButton(root.selectedButtonId) === modelData.id
+                        color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.12) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                        border.color: isAssigned ? root.accent : "transparent"
+                        border.width: isAssigned ? 1 : 0
+
+                        RowLayout {
+                          anchors.fill: parent
+                          anchors.leftMargin: 12
+                          anchors.rightMargin: 12
+
+                          Column {
+                            Text {
+                              text: modelData.label
+                              color: root.foreground
+                              font.bold: parent.parent.parent.isAssigned
+                              font.pixelSize: 11
+                            }
+                            Text {
+                              text: modelData.category
+                              color: root.dim
+                              font.pixelSize: 9
+                            }
+                          }
+
+                          Item { Layout.fillWidth: true }
+
+                          // If currently assigned, show checkmark badge; else show Assign button
+                          Rectangle {
+                            visible: parent.parent.isAssigned
+                            height: 24
+                            width: 80
+                            radius: 4
+                            color: root.accent
+
+                            Text {
+                              anchors.centerIn: parent
+                              text: "✓ Active"
+                              color: "#ffffff"
+                              font.bold: true
+                              font.pixelSize: 10
+                            }
+                          }
+
+                          Button {
+                            visible: !parent.parent.isAssigned
+                            text: "Assign"
+                            onClicked: {
+                              if (device) {
+                                mx.setButton(device.id, root.selectedButtonId, modelData.id)
+                                root.showToast("Mapped " + root.selectedButtonId + " to " + modelData.label)
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
 
             // TAB 1: Smart Ring (Action Ring) Visualizer
@@ -231,7 +465,7 @@ Item {
                     anchors.margins: 14
                     spacing: 10
 
-                    Row {
+                    RowLayout {
                       width: parent.width
                       Text {
                         text: "8-Slot Smart Action Ring"
@@ -239,7 +473,7 @@ Item {
                         font.bold: true
                         font.pixelSize: 13
                       }
-                      Item { width: Math.max(0, parent.width - 260); height: 1 }
+                      Item { Layout.fillWidth: true }
                       Text {
                         text: "Selected: " + root.selectedSlotId
                         color: root.accent
@@ -372,7 +606,10 @@ Item {
                         width: ListView.view.width
                         height: 38
                         radius: 6
-                        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                        property bool isAssigned: root.currentActionForSlot(root.selectedSlotId) === modelData.id
+                        color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.12) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                        border.color: isAssigned ? root.accent : "transparent"
+                        border.width: isAssigned ? 1 : 0
 
                         RowLayout {
                           anchors.fill: parent
@@ -382,19 +619,30 @@ Item {
                           Text {
                             text: modelData.label
                             color: root.foreground
-                            font.bold: true
+                            font.bold: parent.parent.isAssigned
                             font.pixelSize: 11
                           }
 
                           Item { Layout.fillWidth: true }
 
-                          Text {
-                            text: modelData.category
-                            color: root.dim
-                            font.pixelSize: 9
+                          Rectangle {
+                            visible: parent.parent.isAssigned
+                            height: 22
+                            width: 70
+                            radius: 4
+                            color: root.accent
+
+                            Text {
+                              anchors.centerIn: parent
+                              text: "✓ Active"
+                              color: "#ffffff"
+                              font.bold: true
+                              font.pixelSize: 10
+                            }
                           }
 
                           Button {
+                            visible: !parent.parent.isAssigned
                             text: "Assign"
                             onClicked: {
                               if (device) {
@@ -420,7 +668,7 @@ Item {
 
                 // Gesture list
                 Rectangle {
-                  Layout.preferredWidth: 320
+                  Layout.preferredWidth: 340
                   Layout.fillHeight: true
                   radius: 10
                   color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
@@ -446,10 +694,12 @@ Item {
 
                       delegate: Rectangle {
                         width: ListView.view.width
-                        height: 54
+                        height: 56
                         radius: 8
                         property bool isSelected: root.selectedGestureId === modelData.id
-                        color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                        color: isSelected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.15) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                        border.color: isSelected ? root.accent : "transparent"
+                        border.width: isSelected ? 2 : 0
 
                         RowLayout {
                           anchors.fill: parent
@@ -458,25 +708,26 @@ Item {
 
                           Text {
                             text: modelData.glyph
-                            color: parent.parent.isSelected ? "#ffffff" : root.accent
-                            font.pixelSize: 18
+                            color: root.accent
+                            font.pixelSize: 20
                             font.bold: true
                           }
 
                           Column {
+                            Layout.fillWidth: true
+                            spacing: 2
                             Text {
                               text: modelData.label
-                              color: parent.parent.parent.isSelected ? "#ffffff" : root.foreground
+                              color: root.foreground
                               font.bold: true
                               font.pixelSize: 12
                             }
-                            Text {
-                              text: modelData.customLabel
-                              color: parent.parent.parent.isSelected ? "#ffffff" : root.dim
-                              font.pixelSize: 10
+                            RowLayout {
+                              spacing: 4
+                              Text { text: "Action:"; color: root.dim; font.pixelSize: 10 }
+                              Text { text: modelData.customLabel; color: root.accent; font.bold: true; font.pixelSize: 10 }
                             }
                           }
-                          Item { Layout.fillWidth: true }
                         }
 
                         MouseArea {
@@ -518,7 +769,10 @@ Item {
                         width: ListView.view.width
                         height: 38
                         radius: 6
-                        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                        property bool isAssigned: root.currentActionForGesture(root.selectedGestureId) === modelData.id
+                        color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.12) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                        border.color: isAssigned ? root.accent : "transparent"
+                        border.width: isAssigned ? 1 : 0
 
                         RowLayout {
                           anchors.fill: parent
@@ -528,13 +782,30 @@ Item {
                           Text {
                             text: modelData.label
                             color: root.foreground
-                            font.bold: true
+                            font.bold: parent.parent.isAssigned
                             font.pixelSize: 11
                           }
 
                           Item { Layout.fillWidth: true }
 
+                          Rectangle {
+                            visible: parent.parent.isAssigned
+                            height: 22
+                            width: 70
+                            radius: 4
+                            color: root.accent
+
+                            Text {
+                              anchors.centerIn: parent
+                              text: "✓ Active"
+                              color: "#ffffff"
+                              font.bold: true
+                              font.pixelSize: 10
+                            }
+                          }
+
                           Button {
+                            visible: !parent.parent.isAssigned
                             text: "Assign"
                             onClicked: {
                               if (device) {
@@ -551,141 +822,7 @@ Item {
               }
             }
 
-            // TAB 3: Button Remapping
-            Item {
-              RowLayout {
-                anchors.fill: parent
-                anchors.margins: 18
-                spacing: 18
-
-                // Physical Buttons List
-                Rectangle {
-                  Layout.preferredWidth: 320
-                  Layout.fillHeight: true
-                  radius: 10
-                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
-
-                  ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 10
-
-                    Text {
-                      text: "Physical Hardware Buttons"
-                      color: root.foreground
-                      font.bold: true
-                      font.pixelSize: 13
-                    }
-
-                    ListView {
-                      Layout.fillWidth: true
-                      Layout.fillHeight: true
-                      clip: true
-                      spacing: 6
-                      model: [
-                        { id: "GestureButton", label: "Thumb Gesture Button" },
-                        { id: "HapticPanel", label: "Smart Ring / Thumb Rest" },
-                        { id: "DpiToggle", label: "Top Mode Button" },
-                        { id: "MiddleClick", label: "Scroll Wheel Click" },
-                        { id: "Back", label: "Side Back Button" },
-                        { id: "Forward", label: "Side Forward Button" },
-                        { id: "Thumbwheel", label: "Horizontal Thumb Wheel" }
-                      ]
-
-                      delegate: Rectangle {
-                        width: ListView.view.width
-                        height: 42
-                        radius: 6
-                        property bool isSelected: root.selectedButtonId === modelData.id
-                        color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
-
-                        RowLayout {
-                          anchors.fill: parent
-                          anchors.leftMargin: 12
-                          anchors.rightMargin: 12
-
-                          Text {
-                            text: modelData.label
-                            color: parent.parent.isSelected ? "#ffffff" : root.foreground
-                            font.bold: true
-                            font.pixelSize: 11
-                          }
-                          Item { Layout.fillWidth: true }
-                        }
-
-                        MouseArea {
-                          anchors.fill: parent
-                          onClicked: root.selectedButtonId = modelData.id
-                        }
-                      }
-                    }
-                  }
-                }
-
-                // Target Action list
-                Rectangle {
-                  Layout.fillWidth: true
-                  Layout.fillHeight: true
-                  radius: 10
-                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
-
-                  ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 10
-
-                    Text {
-                      text: "Map Button [" + root.selectedButtonId + "] to Action"
-                      color: root.accent
-                      font.bold: true
-                      font.pixelSize: 13
-                    }
-
-                    ListView {
-                      Layout.fillWidth: true
-                      Layout.fillHeight: true
-                      clip: true
-                      spacing: 5
-                      model: Model.AVAILABLE_ACTIONS
-
-                      delegate: Rectangle {
-                        width: ListView.view.width
-                        height: 38
-                        radius: 6
-                        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
-
-                        RowLayout {
-                          anchors.fill: parent
-                          anchors.leftMargin: 10
-                          anchors.rightMargin: 10
-
-                          Text {
-                            text: modelData.label
-                            color: root.foreground
-                            font.bold: true
-                            font.pixelSize: 11
-                          }
-
-                          Item { Layout.fillWidth: true }
-
-                          Button {
-                            text: "Map to Button"
-                            onClicked: {
-                              if (device) {
-                                mx.setButton(device.id, root.selectedButtonId, modelData.id)
-                                root.showToast("Mapped " + root.selectedButtonId + " to " + modelData.label)
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
-            // TAB 4: Pointer & Scroll
+            // TAB 3: Pointer & Scroll
             Item {
               ScrollView {
                 anchors.fill: parent
@@ -707,11 +844,11 @@ Item {
                       anchors.margins: 14
                       spacing: 10
 
-                      Row {
+                      RowLayout {
                         width: parent.width
-                        Text { id: ptrLabel; text: "Sensor Sensitivity (DPI)"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
-                        Item { width: Math.max(0, parent.width - ptrLabel.width - ptrVal.width); height: 1 }
-                        Text { id: ptrVal; text: (device && device.dpi ? device.dpi : 1000) + " DPI"; color: root.accent; font.bold: true }
+                        Text { text: "Sensor Sensitivity (DPI)"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
+                        Item { Layout.fillWidth: true }
+                        Text { text: (device && device.dpi ? device.dpi : 1000) + " DPI"; color: root.accent; font.bold: true }
                       }
 
                       Slider {
@@ -741,7 +878,7 @@ Item {
 
                       Text { text: "SmartShift Ratchet Wheel"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
 
-                      Row {
+                      RowLayout {
                         spacing: 10
                         Repeater {
                           model: [
@@ -768,7 +905,7 @@ Item {
               }
             }
 
-            // TAB 5: Driver & Config
+            // TAB 4: Driver & Config
             Item {
               ScrollView {
                 anchors.fill: parent
