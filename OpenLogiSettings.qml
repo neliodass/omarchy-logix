@@ -16,6 +16,8 @@ Item {
   property string selectedGestureId: "Up"
   property string selectedButtonId: "GestureButton"
   property string actionSearchQuery: ""
+  property string statusToast: ""
+  property bool closingFromHost: false
 
   function resolveService() {
     if (service || !shell) return
@@ -26,6 +28,7 @@ Item {
   }
 
   function open(payloadJson) {
+    closingFromHost = false
     resolveService()
     window.visible = true
     if (mx) {
@@ -38,10 +41,30 @@ Item {
         } catch (e) { /* ignore */ }
       }
     }
+    Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
   }
 
   function close() {
+    closingFromHost = true
     window.visible = false
+    closingFromHost = false
+  }
+
+  function requestClose() {
+    if (shell && typeof shell.hide === "function") shell.hide("io.openlogi.omarchy")
+    else window.visible = false
+  }
+
+  function showToast(msg) {
+    statusToast = msg
+    toastTimer.restart()
+  }
+
+  Timer {
+    id: toastTimer
+    interval: 3000
+    repeat: false
+    onTriggered: statusToast = ""
   }
 
   Service {
@@ -61,251 +84,401 @@ Item {
   FloatingWindow {
     id: window
     title: "OpenLogi Settings — " + (device ? Model.plainHidText(device.name) : "Logitech")
-    width: 820
-    height: 600
+    color: root.background
+    implicitWidth: 860
+    implicitHeight: 680
+    minimumSize: Qt.size(640, 520)
     visible: false
 
-    Rectangle {
+    onVisibleChanged: {
+      if (!visible && !root.closingFromHost && root.shell && typeof root.shell.hide === "function")
+        root.shell.hide("io.openlogi.omarchy")
+    }
+
+    FocusScope {
       anchors.fill: parent
-      color: Color.background
+      focus: true
 
-      ColumnLayout {
+      PanelKeyCatcher {
+        id: keyCatcher
         anchors.fill: parent
-        spacing: 0
+        onCloseRequested: root.requestClose()
+        onTextKey: function(t) {
+          if (t === "r" || t === "R") { if (mx) mx.refresh() }
+        }
 
-        // Titlebar & Tabs
-        Rectangle {
-          Layout.fillWidth: true
-          Layout.preferredHeight: 56
-          color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
+        ColumnLayout {
+          anchors.fill: parent
+          spacing: 0
 
-          RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            spacing: 12
+          // Top Header & Navigation Tabs
+          Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 60
+            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
 
-            OpenLogiIcon {
-              iconSize: 24
-              color: root.accent
-              isKeyboard: Model.isKeyboard(device)
-            }
+            RowLayout {
+              anchors.fill: parent
+              anchors.leftMargin: 16
+              anchors.rightMargin: 16
+              spacing: 12
 
-            Column {
-              Text {
-                text: device ? Model.plainHidText(device.name) : "OpenLogi Devices"
-                color: root.foreground
-                font.bold: true
-                font.pixelSize: 14
+              OpenLogiIcon {
+                iconSize: 26
+                color: root.accent
+                isKeyboard: Model.isKeyboard(device)
               }
-              Text {
-                text: device ? (Model.connectionLabel(device) + " · Battery: " + Model.batteryLabel(device)) : "No device connected"
-                color: root.dim
-                font.pixelSize: 11
+
+              Column {
+                Text {
+                  text: device ? Model.plainHidText(device.name) : "OpenLogi Control"
+                  color: root.foreground
+                  font.bold: true
+                  font.pixelSize: 14
+                }
+                Text {
+                  text: device ? (Model.connectionLabel(device) + " · Battery " + Model.batteryLabel(device) + " · HID++ 2.0") : "Scanning..."
+                  color: root.dim
+                  font.pixelSize: 11
+                }
               }
-            }
 
-            Item { Layout.fillWidth: true }
+              Item { Layout.fillWidth: true }
 
-            // Navigation Tabs
-            Row {
-              spacing: 6
+              // Navigation Tabs
+              Row {
+                spacing: 6
 
-              Repeater {
-                model: [
-                  { id: "smartring", label: "Smart Ring & Gestures" },
-                  { id: "buttons", label: "Button Remapping" },
-                  { id: "pointer", label: "Pointer & Scroll" },
-                  { id: "keyboard", label: "Keyboard Extras" }
-                ]
+                Repeater {
+                  model: [
+                    { id: "smartring", label: "Smart Ring" },
+                    { id: "gestures", label: "Gestures" },
+                    { id: "buttons", label: "Button Remaps" },
+                    { id: "pointer", label: "DPI & Scroll" },
+                    { id: "driver", label: "Driver & Config" }
+                  ]
 
-                delegate: Rectangle {
-                  width: tabLabel.implicitWidth + 24
-                  height: 32
-                  radius: 6
-                  property bool isActive: root.activeTab === modelData.id
-                  color: isActive ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                  delegate: Rectangle {
+                    width: tabText.implicitWidth + 20
+                    height: 32
+                    radius: 6
+                    property bool isActive: root.activeTab === modelData.id
+                    color: isActive ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
 
-                  Text {
-                    id: tabLabel
-                    anchors.centerIn: parent
-                    text: modelData.label
-                    color: parent.isActive ? "#ffffff" : root.foreground
-                    font.bold: parent.isActive
-                    font.pixelSize: 12
-                  }
+                    Text {
+                      id: tabText
+                      anchors.centerIn: parent
+                      text: modelData.label
+                      color: parent.isActive ? "#ffffff" : root.foreground
+                      font.bold: parent.isActive
+                      font.pixelSize: 11
+                    }
 
-                  MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.activeTab = modelData.id
+                    MouseArea {
+                      anchors.fill: parent
+                      onClicked: root.activeTab = modelData.id
+                    }
                   }
                 }
               }
             }
           }
-        }
 
-        // Main Content Area
-        StackLayout {
-          Layout.fillWidth: true
-          Layout.fillHeight: true
-          currentIndex: {
-            if (root.activeTab === "smartring") return 0
-            if (root.activeTab === "buttons") return 1
-            if (root.activeTab === "pointer") return 2
-            return 3
+          // Toast notification bar if active
+          Rectangle {
+            visible: root.statusToast !== ""
+            Layout.fillWidth: true
+            Layout.preferredHeight: 28
+            color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.2)
+
+            Text {
+              anchors.centerIn: parent
+              text: root.statusToast
+              color: root.accent
+              font.bold: true
+              font.pixelSize: 11
+            }
           }
 
-          // TAB 1: Smart Ring & Gestures
-          Item {
-            RowLayout {
-              anchors.fill: parent
-              anchors.margins: 20
-              spacing: 24
+          // Tab Content Stack
+          StackLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            currentIndex: {
+              if (root.activeTab === "smartring") return 0
+              if (root.activeTab === "gestures") return 1
+              if (root.activeTab === "buttons") return 2
+              if (root.activeTab === "pointer") return 3
+              return 4
+            }
 
-              // Left: Action Ring Radial Visualizer
-              Rectangle {
-                Layout.preferredWidth: 380
-                Layout.fillHeight: true
-                radius: 12
-                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
-                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+            // TAB 1: Smart Ring (Action Ring) Visualizer
+            Item {
+              RowLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 18
 
-                Column {
-                  anchors.fill: parent
-                  anchors.margins: 14
-                  spacing: 12
+                // Radial Wheel
+                Rectangle {
+                  Layout.preferredWidth: 400
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+                  border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
 
-                  Row {
-                    width: parent.width
-                    Text {
-                      text: "Smart Action Ring (8 Slots)"
-                      color: root.foreground
-                      font.bold: true
-                      font.pixelSize: 13
+                  Column {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Row {
+                      width: parent.width
+                      Text {
+                        text: "8-Slot Smart Action Ring"
+                        color: root.foreground
+                        font.bold: true
+                        font.pixelSize: 13
+                      }
+                      Item { width: 1; height: 1 }
+                      Text {
+                        anchors.right: parent.right
+                        text: "Selected: " + root.selectedSlotId
+                        color: root.accent
+                        font.bold: true
+                        font.pixelSize: 11
+                      }
                     }
-                    Item { width: 1; height: 1; Layout.fillWidth: true }
-                  }
 
-                  // Radial Wheel View
-                  Item {
-                    width: 350
-                    height: 280
+                    // Canvas Radial Layout
+                    Item {
+                      width: 370
+                      height: 360
 
-                    // Center Hub
-                    Rectangle {
-                      anchors.centerIn: parent
-                      width: 80
-                      height: 80
-                      radius: 40
-                      color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.2)
-                      border.color: root.accent
-                      border.width: 2
-
-                      Column {
+                      // Center Ring Hub
+                      Rectangle {
                         anchors.centerIn: parent
-                        Text {
-                          text: "◎"
-                          color: root.accent
-                          font.pixelSize: 22
-                          anchors.horizontalCenter: parent.horizontalCenter
-                        }
-                        Text {
-                          text: "Smart Ring"
-                          color: root.foreground
-                          font.pixelSize: 10
-                          font.bold: true
-                          anchors.horizontalCenter: parent.horizontalCenter
-                        }
-                      }
-                    }
-
-                    // 8 Radial Slot Nodes
-                    Repeater {
-                      model: Model.getActionRingSlots(device)
-                      delegate: Item {
-                        id: slotNode
-                        property real angleRad: (modelData.angle - 90) * Math.PI / 180
-                        property real radius: 100
-                        x: 175 + radius * Math.cos(angleRad) - width / 2
-                        y: 140 + radius * Math.sin(angleRad) - height / 2
-                        width: 72
-                        height: 38
-
-                        Rectangle {
-                          anchors.fill: parent
-                          radius: 8
-                          property bool isSelected: root.selectedSlotId === modelData.id
-                          color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
-                          border.color: isSelected ? "#ffffff" : Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.4)
-                          border.width: isSelected ? 2 : 1
-
-                          Column {
-                            anchors.centerIn: parent
-                            spacing: 1
-                            Text {
-                              text: modelData.glyph + " " + modelData.label
-                              color: slotNode.children[0].isSelected ? "#ffffff" : root.dim
-                              font.pixelSize: 9
-                              anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                            Text {
-                              text: modelData.customLabel
-                              color: slotNode.children[0].isSelected ? "#ffffff" : root.foreground
-                              font.bold: true
-                              font.pixelSize: 10
-                              elide: Text.ElideRight
-                              width: parent.parent.width - 6
-                              horizontalAlignment: Text.AlignHCenter
-                            }
-                          }
-
-                          MouseArea {
-                            anchors.fill: parent
-                            onClicked: root.selectedSlotId = modelData.id
-                          }
-                        }
-                      }
-                    }
-                  }
-
-                  // 5-Directional Gestures Section
-                  Text {
-                    text: "Directional Gestures (Hold + Swipe)"
-                    color: root.foreground
-                    font.bold: true
-                    font.pixelSize: 13
-                  }
-
-                  Row {
-                    spacing: 6
-                    Repeater {
-                      model: Model.getGestures(device)
-                      delegate: Rectangle {
-                        width: 65
-                        height: 52
-                        radius: 8
-                        property bool isSelected: root.selectedGestureId === modelData.id
-                        color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                        width: 90
+                        height: 90
+                        radius: 45
+                        color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.15)
+                        border.color: root.accent
+                        border.width: 2
 
                         Column {
                           anchors.centerIn: parent
                           spacing: 2
                           Text {
-                            text: modelData.glyph + " " + modelData.label
-                            color: parent.parent.isSelected ? "#ffffff" : root.dim
-                            font.pixelSize: 9
+                            text: "◎"
+                            color: root.accent
+                            font.pixelSize: 24
                             anchors.horizontalCenter: parent.horizontalCenter
                           }
                           Text {
-                            text: modelData.customLabel
-                            color: parent.parent.isSelected ? "#ffffff" : root.foreground
+                            text: "Smart Ring"
+                            color: root.foreground
+                            font.pixelSize: 10
                             font.bold: true
-                            font.pixelSize: 9
-                            elide: Text.ElideRight
-                            width: 60
-                            horizontalAlignment: Text.AlignHCenter
+                            anchors.horizontalCenter: parent.horizontalCenter
                           }
+                        }
+                      }
+
+                      // 8 Radial Nodes
+                      Repeater {
+                        model: Model.getActionRingSlots(device)
+                        delegate: Item {
+                          id: slotItem
+                          property real angleRad: (modelData.angle - 90) * Math.PI / 180
+                          property real radius: 125
+                          x: 185 + radius * Math.cos(angleRad) - width / 2
+                          y: 180 + radius * Math.sin(angleRad) - height / 2
+                          width: 82
+                          height: 44
+
+                          Rectangle {
+                            anchors.fill: parent
+                            radius: 8
+                            property bool isSelected: root.selectedSlotId === modelData.id
+                            color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                            border.color: isSelected ? "#ffffff" : Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.4)
+                            border.width: isSelected ? 2 : 1
+
+                            Column {
+                              anchors.centerIn: parent
+                              spacing: 1
+                              Text {
+                                text: modelData.glyph + " " + modelData.label
+                                color: slotItem.children[0].isSelected ? "#ffffff" : root.dim
+                                font.pixelSize: 9
+                                anchors.horizontalCenter: parent.horizontalCenter
+                              }
+                              Text {
+                                text: modelData.customLabel
+                                color: slotItem.children[0].isSelected ? "#ffffff" : root.foreground
+                                font.bold: true
+                                font.pixelSize: 10
+                                elide: Text.ElideRight
+                                width: parent.parent.width - 6
+                                horizontalAlignment: Text.AlignHCenter
+                              }
+                            }
+
+                            MouseArea {
+                              anchors.fill: parent
+                              onClicked: root.selectedSlotId = modelData.id
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    Text {
+                      text: "💡 Click a slot node above, then choose an action on the right to assign it."
+                      color: root.dim
+                      font.pixelSize: 10
+                      wrapMode: Text.Wrap
+                      width: parent.width
+                    }
+                  }
+                }
+
+                // Action Picker for Selected Slot
+                Rectangle {
+                  Layout.fillWidth: true
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+                  border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Text {
+                      text: "Choose Action for [" + root.selectedSlotId + "]"
+                      color: root.accent
+                      font.bold: true
+                      font.pixelSize: 13
+                    }
+
+                    ListView {
+                      Layout.fillWidth: true
+                      Layout.fillHeight: true
+                      clip: true
+                      spacing: 5
+                      model: Model.AVAILABLE_ACTIONS
+
+                      delegate: Rectangle {
+                        width: ListView.view.width
+                        height: 38
+                        radius: 6
+                        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+
+                        RowLayout {
+                          anchors.fill: parent
+                          anchors.leftMargin: 10
+                          anchors.rightMargin: 10
+
+                          Text {
+                            text: modelData.label
+                            color: root.foreground
+                            font.bold: true
+                            font.pixelSize: 11
+                          }
+
+                          Item { Layout.fillWidth: true }
+
+                          Text {
+                            text: modelData.category
+                            color: root.dim
+                            font.pixelSize: 9
+                          }
+
+                          Button {
+                            text: "Assign"
+                            onClicked: {
+                              if (device) {
+                                mx.setActionRingSlot(device.id, root.selectedSlotId, modelData.id, modelData.label)
+                                root.showToast("Assigned " + modelData.label + " to " + root.selectedSlotId)
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // TAB 2: Directional Gestures
+            Item {
+              RowLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 18
+
+                // Gesture list
+                Rectangle {
+                  Layout.preferredWidth: 320
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Text {
+                      text: "5-Way Directional Gestures"
+                      color: root.foreground
+                      font.bold: true
+                      font.pixelSize: 13
+                    }
+
+                    ListView {
+                      Layout.fillWidth: true
+                      Layout.fillHeight: true
+                      clip: true
+                      spacing: 8
+                      model: Model.getGestures(device)
+
+                      delegate: Rectangle {
+                        width: ListView.view.width
+                        height: 54
+                        radius: 8
+                        property bool isSelected: root.selectedGestureId === modelData.id
+                        color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+
+                        RowLayout {
+                          anchors.fill: parent
+                          anchors.leftMargin: 12
+                          anchors.rightMargin: 12
+
+                          Text {
+                            text: modelData.glyph
+                            color: parent.parent.isSelected ? "#ffffff" : root.accent
+                            font.pixelSize: 18
+                            font.bold: true
+                          }
+
+                          Column {
+                            Text {
+                              text: modelData.label
+                              color: parent.parent.parent.isSelected ? "#ffffff" : root.foreground
+                              font.bold: true
+                              font.pixelSize: 12
+                            }
+                            Text {
+                              text: modelData.customLabel
+                              color: parent.parent.parent.isSelected ? "#ffffff" : root.dim
+                              font.pixelSize: 10
+                            }
+                          }
+                          Item { Layout.fillWidth: true }
                         }
 
                         MouseArea {
@@ -316,75 +489,60 @@ Item {
                     }
                   }
                 }
-              }
 
-              // Right: Action Selector for Selected Slot / Gesture
-              Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 12
-                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
-                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                // Action Picker for Gesture
+                Rectangle {
+                  Layout.fillWidth: true
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
 
-                ColumnLayout {
-                  anchors.fill: parent
-                  anchors.margins: 16
-                  spacing: 12
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
 
-                  Text {
-                    text: "Assign Action to Selected Slot: " + root.selectedSlotId
-                    color: root.accent
-                    font.bold: true
-                    font.pixelSize: 14
-                  }
+                    Text {
+                      text: "Assign Action to Gesture: " + root.selectedGestureId
+                      color: root.accent
+                      font.bold: true
+                      font.pixelSize: 13
+                    }
 
-                  // Search filter
-                  TextField {
-                    Layout.fillWidth: true
-                    placeholderText: "Search actions (workspaces, media, window, shortcuts)..."
-                    text: root.actionSearchQuery
-                    onTextChanged: root.actionSearchQuery = text
-                  }
+                    ListView {
+                      Layout.fillWidth: true
+                      Layout.fillHeight: true
+                      clip: true
+                      spacing: 5
+                      model: Model.AVAILABLE_ACTIONS
 
-                  // Action List
-                  ListView {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    spacing: 6
-                    model: Model.AVAILABLE_ACTIONS
+                      delegate: Rectangle {
+                        width: ListView.view.width
+                        height: 38
+                        radius: 6
+                        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
 
-                    delegate: Rectangle {
-                      width: ListView.view.width
-                      height: 40
-                      radius: 6
-                      color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                        RowLayout {
+                          anchors.fill: parent
+                          anchors.leftMargin: 10
+                          anchors.rightMargin: 10
 
-                      RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
+                          Text {
+                            text: modelData.label
+                            color: root.foreground
+                            font.bold: true
+                            font.pixelSize: 11
+                          }
 
-                        Text {
-                          text: modelData.label
-                          color: root.foreground
-                          font.bold: true
-                          font.pixelSize: 12
-                        }
+                          Item { Layout.fillWidth: true }
 
-                        Item { Layout.fillWidth: true }
-
-                        Text {
-                          text: modelData.category
-                          color: root.dim
-                          font.pixelSize: 10
-                        }
-
-                        Button {
-                          text: "Assign"
-                          onClicked: {
-                            if (device) {
-                              mx.setActionRingSlot(device.id, root.selectedSlotId, modelData.id, modelData.label)
+                          Button {
+                            text: "Assign"
+                            onClicked: {
+                              if (device) {
+                                mx.setGesture(device.id, root.selectedGestureId, modelData.id, modelData.label)
+                                root.showToast("Assigned " + modelData.label + " to gesture " + root.selectedGestureId)
+                              }
                             }
                           }
                         }
@@ -394,130 +552,131 @@ Item {
                 }
               }
             }
-          }
 
-          // TAB 2: Button Remapping
-          Item {
-            RowLayout {
-              anchors.fill: parent
-              anchors.margins: 20
-              spacing: 24
+            // TAB 3: Button Remapping
+            Item {
+              RowLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 18
 
-              // Buttons List
-              Rectangle {
-                Layout.preferredWidth: 320
-                Layout.fillHeight: true
-                radius: 12
-                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+                // Physical Buttons List
+                Rectangle {
+                  Layout.preferredWidth: 320
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
 
-                ColumnLayout {
-                  anchors.fill: parent
-                  anchors.margins: 14
-                  spacing: 10
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
 
-                  Text {
-                    text: "Physical Buttons"
-                    color: root.foreground
-                    font.bold: true
-                    font.pixelSize: 14
-                  }
+                    Text {
+                      text: "Physical Hardware Buttons"
+                      color: root.foreground
+                      font.bold: true
+                      font.pixelSize: 13
+                    }
 
-                  ListView {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    spacing: 6
-                    model: [
-                      { id: "GestureButton", label: "Thumb Gesture Button" },
-                      { id: "HapticPanel", label: "Smart Ring / Haptic Panel" },
-                      { id: "DpiToggle", label: "Mode Shift / Top Button" },
-                      { id: "MiddleClick", label: "Scroll Wheel Click" },
-                      { id: "Back", label: "Thumb Back Button" },
-                      { id: "Forward", label: "Thumb Forward Button" },
-                      { id: "Thumbwheel", label: "Horizontal Thumb Wheel" }
-                    ]
+                    ListView {
+                      Layout.fillWidth: true
+                      Layout.fillHeight: true
+                      clip: true
+                      spacing: 6
+                      model: [
+                        { id: "GestureButton", label: "Thumb Gesture Button" },
+                        { id: "HapticPanel", label: "Smart Ring / Thumb Rest" },
+                        { id: "DpiToggle", label: "Top Mode Button" },
+                        { id: "MiddleClick", label: "Scroll Wheel Click" },
+                        { id: "Back", label: "Side Back Button" },
+                        { id: "Forward", label: "Side Forward Button" },
+                        { id: "Thumbwheel", label: "Horizontal Thumb Wheel" }
+                      ]
 
-                    delegate: Rectangle {
-                      width: ListView.view.width
-                      height: 42
-                      radius: 6
-                      property bool isSelected: root.selectedButtonId === modelData.id
-                      color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                      delegate: Rectangle {
+                        width: ListView.view.width
+                        height: 42
+                        radius: 6
+                        property bool isSelected: root.selectedButtonId === modelData.id
+                        color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
 
-                      RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
+                        RowLayout {
+                          anchors.fill: parent
+                          anchors.leftMargin: 12
+                          anchors.rightMargin: 12
 
-                        Text {
-                          text: modelData.label
-                          color: parent.parent.isSelected ? "#ffffff" : root.foreground
-                          font.bold: true
-                          font.pixelSize: 11
+                          Text {
+                            text: modelData.label
+                            color: parent.parent.isSelected ? "#ffffff" : root.foreground
+                            font.bold: true
+                            font.pixelSize: 11
+                          }
+                          Item { Layout.fillWidth: true }
                         }
-                        Item { Layout.fillWidth: true }
-                      }
 
-                      MouseArea {
-                        anchors.fill: parent
-                        onClicked: root.selectedButtonId = modelData.id
+                        MouseArea {
+                          anchors.fill: parent
+                          onClicked: root.selectedButtonId = modelData.id
+                        }
                       }
                     }
                   }
                 }
-              }
 
-              // Target Action assignment
-              Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 12
-                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+                // Target Action list
+                Rectangle {
+                  Layout.fillWidth: true
+                  Layout.fillHeight: true
+                  radius: 10
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
 
-                ColumnLayout {
-                  anchors.fill: parent
-                  anchors.margins: 16
-                  spacing: 12
+                  ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
 
-                  Text {
-                    text: "Map Button: " + root.selectedButtonId
-                    color: root.accent
-                    font.bold: true
-                    font.pixelSize: 14
-                  }
+                    Text {
+                      text: "Map Button [" + root.selectedButtonId + "] to Action"
+                      color: root.accent
+                      font.bold: true
+                      font.pixelSize: 13
+                    }
 
-                  ListView {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    spacing: 6
-                    model: Model.AVAILABLE_ACTIONS
+                    ListView {
+                      Layout.fillWidth: true
+                      Layout.fillHeight: true
+                      clip: true
+                      spacing: 5
+                      model: Model.AVAILABLE_ACTIONS
 
-                    delegate: Rectangle {
-                      width: ListView.view.width
-                      height: 40
-                      radius: 6
-                      color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+                      delegate: Rectangle {
+                        width: ListView.view.width
+                        height: 38
+                        radius: 6
+                        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
 
-                      RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
+                        RowLayout {
+                          anchors.fill: parent
+                          anchors.leftMargin: 10
+                          anchors.rightMargin: 10
 
-                        Text {
-                          text: modelData.label
-                          color: root.foreground
-                          font.bold: true
-                          font.pixelSize: 12
-                        }
+                          Text {
+                            text: modelData.label
+                            color: root.foreground
+                            font.bold: true
+                            font.pixelSize: 11
+                          }
 
-                        Item { Layout.fillWidth: true }
+                          Item { Layout.fillWidth: true }
 
-                        Button {
-                          text: "Map to Button"
-                          onClicked: {
-                            if (device) {
-                              mx.setButton(device.id, root.selectedButtonId, modelData.id)
+                          Button {
+                            text: "Map to Button"
+                            onClicked: {
+                              if (device) {
+                                mx.setButton(device.id, root.selectedButtonId, modelData.id)
+                                root.showToast("Mapped " + root.selectedButtonId + " to " + modelData.label)
+                              }
                             }
                           }
                         }
@@ -527,78 +686,79 @@ Item {
                 }
               }
             }
-          }
 
-          // TAB 3: Pointer & Scroll
-          Item {
-            ScrollView {
-              anchors.fill: parent
-              anchors.margins: 24
+            // TAB 4: Pointer & Scroll
+            Item {
+              ScrollView {
+                anchors.fill: parent
+                anchors.margins: 20
 
-              Column {
-                width: 760
-                spacing: 24
+                Column {
+                  width: 800
+                  spacing: 16
 
-                // DPI Card
-                Rectangle {
-                  width: parent.width
-                  height: 120
-                  radius: 10
-                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
+                  // DPI Settings
+                  Rectangle {
+                    width: parent.width
+                    height: 110
+                    radius: 8
+                    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
-                  Column {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+                    Column {
+                      anchors.fill: parent
+                      anchors.margins: 14
+                      spacing: 10
 
-                    Row {
-                      width: parent.width
-                      Text { text: "Sensor Sensitivity (DPI)"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
-                      Text { text: (device && device.dpi ? device.dpi : 1000) + " DPI"; color: root.accent; font.bold: true; anchors.right: parent.right }
-                    }
+                      Row {
+                        width: parent.width
+                        Text { text: "Sensor Sensitivity (DPI)"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
+                        Text { text: (device && device.dpi ? device.dpi : 1000) + " DPI"; color: root.accent; font.bold: true; anchors.right: parent.right }
+                      }
 
-                    Slider {
-                      width: parent.width
-                      from: 200
-                      to: 8000
-                      stepSize: 50
-                      value: device && device.dpi ? device.dpi : 1000
-                      onMoved: {
-                        if (device) mx.setDpi(device.id, Math.round(value))
+                      Slider {
+                        width: parent.width
+                        from: 200
+                        to: 8000
+                        stepSize: 50
+                        value: device && device.dpi ? device.dpi : 1000
+                        onMoved: {
+                          if (device) mx.setDpi(device.id, Math.round(value))
+                        }
                       }
                     }
                   }
-                }
 
-                // SmartShift Card
-                Rectangle {
-                  width: parent.width
-                  height: 140
-                  radius: 10
-                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
+                  // SmartShift Settings
+                  Rectangle {
+                    width: parent.width
+                    height: 120
+                    radius: 8
+                    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
-                  Column {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+                    Column {
+                      anchors.fill: parent
+                      anchors.margins: 14
+                      spacing: 10
 
-                    Text { text: "SmartShift & Ratchet Wheel"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
+                      Text { text: "SmartShift Ratchet Wheel"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
 
-                    Row {
-                      spacing: 12
-                      Repeater {
-                        model: [
-                          { id: "auto", label: "Smart Auto-Switch" },
-                          { id: "ratchet", label: "Always Ratchet" },
-                          { id: "freewheel", label: "Always Free Spin" }
-                        ]
-                        delegate: Button {
-                          text: modelData.label
-                          highlighted: device && device.smartshift && device.smartshift.mode === modelData.id
-                          onClicked: {
-                            if (device) {
-                              var thresh = device.smartshift ? device.smartshift.threshold : 12
-                              mx.setSmartShift(device.id, modelData.id, thresh)
+                      Row {
+                        spacing: 10
+                        Repeater {
+                          model: [
+                            { id: "auto", label: "Smart Auto-Switch" },
+                            { id: "ratchet", label: "Always Ratchet" },
+                            { id: "freewheel", label: "Always Free Spin" }
+                          ]
+                          delegate: Button {
+                            text: modelData.label
+                            highlighted: device && device.smartshift && device.smartshift.mode === modelData.id
+                            onClicked: {
+                              if (device) {
+                                var thresh = device.smartshift ? device.smartshift.threshold : 12
+                                mx.setSmartShift(device.id, modelData.id, thresh)
+                                root.showToast("SmartShift set to " + modelData.label)
+                              }
                             }
                           }
                         }
@@ -608,58 +768,33 @@ Item {
                 }
               }
             }
-          }
 
-          // TAB 4: Keyboard Extras
-          Item {
-            ScrollView {
-              anchors.fill: parent
-              anchors.margins: 24
+            // TAB 5: Driver & Config
+            Item {
+              ScrollView {
+                anchors.fill: parent
+                anchors.margins: 20
 
-              Column {
-                width: 760
-                spacing: 20
+                Column {
+                  width: 800
+                  spacing: 16
 
-                Rectangle {
-                  width: parent.width
-                  height: 160
-                  radius: 10
-                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
+                  Rectangle {
+                    width: parent.width
+                    height: 140
+                    radius: 8
+                    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
-                  Column {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 14
+                    Column {
+                      anchors.fill: parent
+                      anchors.margins: 14
+                      spacing: 8
 
-                    Text { text: "Keyboard Lighting & Fn Keys"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
-
-                    Row {
-                      spacing: 16
-                      CheckBox {
-                        text: "Swap Fn-Key Behavior (Use F1-F12 as standard function keys)"
-                        checked: device && device.keyboard ? device.keyboard.fn_swap : false
-                        onToggled: {
-                          if (device) {
-                            var kb = device.keyboard || {}
-                            kb.fn_swap = checked
-                            mx.setKeyboard(device.id, kb)
-                          }
-                        }
-                      }
-                    }
-
-                    Row {
-                      spacing: 16
-                      CheckBox {
-                        text: "Disable Caps Lock"
-                        checked: device && device.keyboard ? device.keyboard.disable_caps_lock : false
-                        onToggled: {
-                          if (device) {
-                            var kb = device.keyboard || {}
-                            kb.disable_caps_lock = checked
-                            mx.setKeyboard(device.id, kb)
-                          }
-                        }
+                      Text { text: "OpenLogi Status & Configuration"; color: root.foreground; font.bold: true; font.pixelSize: 13 }
+                      Text {
+                        text: "• Driver Mode: Standalone Kernel HID++ & Direct TOML Engine (Active)\n• Configuration File: ~/.config/openlogi/config.toml\n• Active Device: " + (device ? (device.name + " (" + device.id + ")") : "None")
+                        color: root.dim
+                        font.pixelSize: 11
                       }
                     }
                   }

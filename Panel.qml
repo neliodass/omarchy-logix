@@ -45,12 +45,8 @@ Panel {
 
   function openFullSettings() {
     root.close()
-    Qt.callLater(function() {
-      if (root.bar && root.bar.shell && typeof root.bar.shell.summon === "function") {
-        var payload = device && device.id ? { device: device.id } : {}
-        root.bar.shell.summon("io.openlogi.omarchy", JSON.stringify(payload))
-      }
-    })
+    // Directly summon settings window via Omarchy shell
+    Quickshell.execDetached(["omarchy-shell", "shell", "summon", "io.openlogi.omarchy", "{}"])
   }
 
   KeyboardPanel {
@@ -60,8 +56,8 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(340))
-    contentHeight: panel.fittedContentHeight(Math.max(column.implicitHeight, Style.space(260)), Style.space(620))
+    contentWidth: panel.fittedContentWidth(Style.space(360))
+    contentHeight: panel.fittedContentHeight(Math.max(column.implicitHeight, Style.space(280)), Style.space(640))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -74,7 +70,7 @@ Panel {
       Flickable {
         id: panelFlick
         anchors.fill: parent
-        anchors.margins: Style.space(14)
+        anchors.margins: Style.space(12)
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -83,23 +79,23 @@ Panel {
         Column {
           id: column
           width: panelFlick.width
-          spacing: 12
+          spacing: 10
 
           // Header Card
           Rectangle {
             width: parent.width
-            height: 64
+            height: 60
             radius: 8
             color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
 
             Row {
               anchors.fill: parent
               anchors.margins: 10
-              spacing: 12
+              spacing: 10
 
               OpenLogiIcon {
                 anchors.verticalCenter: parent.verticalCenter
-                iconSize: 28
+                iconSize: 26
                 color: root.accent
                 lowBattery: mx ? mx.batteryLow : false
                 isKeyboard: Model.isKeyboard(device)
@@ -107,69 +103,24 @@ Panel {
 
               Column {
                 anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 44
+                width: parent.width - 40
                 spacing: 2
 
                 Text {
-                  text: device ? Model.plainHidText(device.name) : (mx && mx.message ? mx.message : "No Device")
+                  text: device ? Model.plainHidText(device.name) : (mx && mx.message ? mx.message : "No Logitech Device")
                   color: root.foreground
                   font.family: root.fontFamily
-                  font.pixelSize: 14
+                  font.pixelSize: 13
                   font.bold: true
                   elide: Text.ElideRight
                   width: parent.width
                 }
 
-                Row {
-                  spacing: 6
-                  Text {
-                    text: device ? (Model.connectionLabel(device) + " · " + Model.batteryLabel(device)) : "Offline"
-                    color: root.dim
-                    font.family: root.fontFamily
-                    font.pixelSize: 11
-                  }
-                }
-              }
-            }
-          }
-
-          // Device Switcher (if multiple)
-          Column {
-            visible: root.showDevices
-            width: parent.width
-            spacing: 4
-
-            Text {
-              text: "Connected Devices"
-              color: root.dim
-              font.pixelSize: 11
-              font.bold: true
-            }
-
-            Row {
-              spacing: 6
-              Repeater {
-                model: mx ? mx.displayDevices : []
-                delegate: Rectangle {
-                  width: 140
-                  height: 30
-                  radius: 6
-                  color: (device && modelData.id === device.id) ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
-
-                  Text {
-                    anchors.centerIn: parent
-                    text: Model.plainHidText(modelData.name)
-                    color: (device && modelData.id === device.id) ? "#ffffff" : root.foreground
-                    font.pixelSize: 11
-                    elide: Text.ElideRight
-                    width: parent.width - 12
-                    horizontalAlignment: Text.AlignHCenter
-                  }
-
-                  MouseArea {
-                    anchors.fill: parent
-                    onClicked: mx.selectDevice(modelData.id)
-                  }
+                Text {
+                  text: device ? (Model.connectionLabel(device) + " · Battery: " + Model.batteryLabel(device)) : "Scanning sysfs / HID++"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: 11
                 }
               }
             }
@@ -199,16 +150,16 @@ Panel {
 
               Column {
                 anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 110
+                width: parent.width - 105
 
                 Text {
-                  text: "Smart Ring (Action Ring)"
+                  text: "Smart Ring & Gestures"
                   color: root.foreground
                   font.pixelSize: 12
                   font.bold: true
                 }
                 Text {
-                  text: "8 radial slots & gestures active"
+                  text: "8 radial slots configured"
                   color: root.dim
                   font.pixelSize: 10
                 }
@@ -222,7 +173,7 @@ Panel {
             }
           }
 
-          // DPI Section
+          // Pointer Speed (DPI) Section
           Column {
             visible: root.isMouse
             width: parent.width
@@ -236,6 +187,7 @@ Panel {
                 font.pixelSize: 11
                 font.bold: true
               }
+              Item { width: 1; height: 1 }
               Text {
                 anchors.right: parent.right
                 text: (device && device.dpi ? device.dpi : 1000) + " DPI"
@@ -245,20 +197,25 @@ Panel {
               }
             }
 
-            // DPI Preset Pills
+            // Perfectly fitted 6 DPI Preset Pills
             Row {
+              id: dpiRow
+              width: parent.width
               spacing: 4
+
+              readonly property int pillWidth: Math.max(36, Math.floor((width - (5 * spacing)) / 6))
+
               Repeater {
                 model: [800, 1000, 1600, 2400, 4000, 8000]
                 delegate: Rectangle {
-                  width: 48
+                  width: dpiRow.pillWidth
                   height: 24
                   radius: 4
                   color: (device && device.dpi === modelData) ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
 
                   Text {
                     anchors.centerIn: parent
-                    text: modelData >= 1000 ? (modelData / 1000) + "K" : modelData
+                    text: modelData >= 1000 ? (modelData / 1000) + "K" : String(modelData)
                     color: (device && device.dpi === modelData) ? "#ffffff" : root.foreground
                     font.pixelSize: 10
                     font.bold: true
@@ -269,6 +226,18 @@ Panel {
                     onClicked: if (device) mx.setDpi(device.id, modelData)
                   }
                 }
+              }
+            }
+
+            // Fine DPI Slider
+            Slider {
+              width: parent.width
+              from: 200
+              to: 8000
+              stepSize: 50
+              value: device && device.dpi ? device.dpi : 1000
+              onMoved: {
+                if (device) mx.setDpi(device.id, Math.round(value))
               }
             }
           }
@@ -296,15 +265,20 @@ Panel {
             }
 
             Row {
-              spacing: 6
+              id: smartShiftRow
+              width: parent.width
+              spacing: 4
+
+              readonly property int btnWidth: Math.max(70, Math.floor((width - (2 * spacing)) / 3))
+
               Repeater {
                 model: [
                   { id: "auto", label: "Smart Auto" },
-                  { id: "ratchet", label: "Click-to-Click" },
+                  { id: "ratchet", label: "Ratchet" },
                   { id: "freewheel", label: "Free Spin" }
                 ]
                 delegate: Rectangle {
-                  width: 96
+                  width: smartShiftRow.btnWidth
                   height: 26
                   radius: 5
                   property bool isSelected: device && device.smartshift && device.smartshift.mode === modelData.id
@@ -345,10 +319,14 @@ Panel {
             }
 
             Row {
-              spacing: 8
+              id: scrollRow
+              width: parent.width
+              spacing: 6
+
+              readonly property int toggleWidth: Math.max(100, Math.floor((width - spacing) / 2))
 
               Rectangle {
-                width: 145
+                width: scrollRow.toggleWidth
                 height: 28
                 radius: 6
                 property bool invertY: device && device.scroll ? device.scroll.invert_y : false
@@ -356,8 +334,8 @@ Panel {
 
                 Row {
                   anchors.centerIn: parent
-                  spacing: 6
-                  Text { text: "⇅"; color: parent.parent.invertY ? root.accent : root.foreground; font.pixelSize: 12 }
+                  spacing: 4
+                  Text { text: "⇅"; color: parent.parent.invertY ? root.accent : root.foreground; font.pixelSize: 11 }
                   Text { text: "Invert Wheel"; color: parent.parent.invertY ? root.accent : root.foreground; font.pixelSize: 10 }
                 }
 
@@ -372,7 +350,7 @@ Panel {
               }
 
               Rectangle {
-                width: 145
+                width: scrollRow.toggleWidth
                 height: 28
                 radius: 6
                 property bool hires: device && device.scroll ? device.scroll.hires : true
@@ -380,8 +358,8 @@ Panel {
 
                 Row {
                   anchors.centerIn: parent
-                  spacing: 6
-                  Text { text: "⚡"; color: parent.parent.hires ? root.accent : root.foreground; font.pixelSize: 12 }
+                  spacing: 4
+                  Text { text: "⚡"; color: parent.parent.hires ? root.accent : root.foreground; font.pixelSize: 11 }
                   Text { text: "Smooth Scroll"; color: parent.parent.hires ? root.accent : root.foreground; font.pixelSize: 10 }
                 }
 
@@ -407,11 +385,11 @@ Panel {
           // Footer Buttons
           Row {
             width: parent.width
-            spacing: 8
+            spacing: 6
 
             Button {
-              width: parent.width - 40
-              text: "Open Settings & Smart Ring"
+              width: parent.width - 38
+              text: "All Settings & Button Remaps"
               onClicked: root.openFullSettings()
             }
 
