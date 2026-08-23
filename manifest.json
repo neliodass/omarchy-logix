@@ -3,11 +3,11 @@
   "id": "io.openlogi.omarchy",
   "name": "OpenLogi Control",
   "version": "1.0.0",
-  "author": "OpenLogi & Omarchy Community",
+  "author": "OpenLogi & Omarchy Contributors",
   "license": "MIT",
   "homepage": "https://github.com/AprilNEA/OpenLogi",
   "repository": "https://github.com/AprilNEA/OpenLogi.git",
-  "description": "Logitech MX & OpenLogi control for Omarchy. Smart Ring (Action Ring), gestures, DPI, SmartShift, and full button remaps in a native bar widget & settings window.",
+  "description": "Logitech MX & OpenLogi control for Omarchy. Smart Ring (Action Ring), gestures, DPI, SmartShift, and full button remaps.",
   "dependencies": {
     "required": [
       {
@@ -29,38 +29,47 @@
         "purpose": "High-performance Rust driver/daemon for Logitech devices with full Smart Ring & gesture support"
       },
       {
-        "name": "bluez",
+        "name": "BlueZ",
         "package": "bluez",
-        "purpose": "Bluetooth battery and connection fallback overlay"
+        "purpose": "Bluetooth battery overlay fallback"
       }
     ]
   },
+  "kinds": [
+    "bar-widget",
+    "panel",
+    "service"
+  ],
   "entryPoints": {
-    "bar": "BarWidget.qml",
-    "service": "Service.qml",
-    "settings": "OpenLogiSettings.qml",
-    "overlay": "ActionRingOverlay.qml"
+    "barWidget": "BarWidget.qml",
+    "panel": "OpenLogiSettings.qml",
+    "service": "Service.qml"
   },
-  "settings": {
-    "refreshIntervalSec": {
-      "type": "integer",
-      "default": 15,
-      "min": 5,
-      "max": 300,
-      "title": "Refresh interval (seconds)",
-      "description": "How often to scan devices when idle"
+  "barWidget": {
+    "displayName": "OpenLogi Control",
+    "description": "Smart Ring (Action Ring), Gestures, Battery, and settings for Logitech MX devices via OpenLogi",
+    "category": "Devices",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 15
     },
-    "selectedDevice": {
-      "type": "string",
-      "default": "",
-      "title": "Selected device",
-      "description": "Serial number, unit ID, or name of preferred device"
-    },
-    "enableActionRingOverlay": {
-      "type": "boolean",
-      "default": true,
-      "title": "Enable Action Ring Overlay",
-      "description": "Show on-screen radial menu when Smart Ring / Gesture button is triggered"
-    }
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Discover interval (seconds)",
+        "min": 5,
+        "max": 300,
+        "step": 5,
+        "defaultValue": 15
+      },
+      {
+        "key": "selectedDevice",
+        "type": "string",
+        "label": "Preferred device id",
+        "defaultValue": ""
+      }
+    ]
   }
 }
