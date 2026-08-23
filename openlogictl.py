@@ -287,7 +287,7 @@ def get_feature_index(fd: int, feat_id: int) -> Optional[int]:
     return None
 
 
-def apply_hardware_smartshift(hidraw_path: str, mode_str: str, threshold: int = 12, torque: int = 50) -> bool:
+def apply_hardware_smartshift(hidraw_path: str, mode_str: str, threshold: int = 10, torque: int = 75) -> bool:
     fd = open_hidraw(hidraw_path)
     if fd is None:
         return False
@@ -297,12 +297,14 @@ def apply_hardware_smartshift(hidraw_path: str, mode_str: str, threshold: int = 
         if feat_idx is not None:
             # Function 2: set_ratchet_control_mode([wheel_mode, auto_disengage, torque])
             # wheel_mode: 1 = Freespin, 2 = Ratchet
+            safe_torque = max(1, min(100, int(torque)))
+            safe_thresh = max(1, min(255, int(threshold)))
             if mode_str == "freewheel":
-                params = bytes([1, 0, max(1, min(100, torque))])
+                params = bytes([1, 0, safe_torque])
             elif mode_str == "ratchet":
-                params = bytes([2, 0, max(1, min(100, torque))])
+                params = bytes([2, 0, safe_torque])
             else: # auto
-                params = bytes([2, max(1, min(255, threshold)), max(1, min(100, torque))])
+                params = bytes([2, safe_thresh, safe_torque])
             res = hidpp_call(fd, feat_idx, 0x02, params)
             return res is not None
 
@@ -310,7 +312,7 @@ def apply_hardware_smartshift(hidraw_path: str, mode_str: str, threshold: int = 
         feat_idx = get_feature_index(fd, 0x2110)
         if feat_idx is not None:
             mode_num = 1 if mode_str == "ratchet" else (2 if mode_str == "freewheel" else 3)
-            params = bytes([mode_num, max(1, min(255, threshold)), max(1, min(100, torque))])
+            params = bytes([mode_num, max(1, min(255, int(threshold))), max(1, min(100, int(torque)))])
             res = hidpp_call(fd, feat_idx, 0x01, params)
             return res is not None
         return False
@@ -356,41 +358,41 @@ def dispatch_action(action_id: str) -> None:
     if action_id == "ShowActionRing":
         subprocess.Popen(["omarchy-shell", "io.openlogi.omarchy", "showActionRing"])
     elif action_id == "MissionControl":
-        subprocess.Popen(["hyprctl", "dispatch", "overview:toggle"])
+        subprocess.Popen(["omarchy-menu-window"])
     elif action_id == "NextWorkspace":
-        subprocess.Popen(["hyprctl", "dispatch", "workspace", "+1"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.focus({ workspace = "e+1" }))'])
     elif action_id == "PrevWorkspace":
-        subprocess.Popen(["hyprctl", "dispatch", "workspace", "-1"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.focus({ workspace = "e-1" }))'])
     elif action_id == "MaximizeWindow":
-        subprocess.Popen(["hyprctl", "dispatch", "fullscreen", "1"])
-    elif action_id == "MinimizeWindow":
-        subprocess.Popen(["hyprctl", "dispatch", "movetoworkspacesilent", "special:minimized"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen" }))'])
+    elif action_id == "MinimizeWindow" or action_id == "ShowDesktop":
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.workspace.toggle_special("scratchpad"))'])
     elif action_id == "TileLeft":
-        subprocess.Popen(["hyprctl", "dispatch", "movefocus", "l"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.focus({ direction = "l" }))'])
     elif action_id == "TileRight":
-        subprocess.Popen(["hyprctl", "dispatch", "movefocus", "r"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.focus({ direction = "r" }))'])
     elif action_id == "TileUp":
-        subprocess.Popen(["hyprctl", "dispatch", "movefocus", "u"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.focus({ direction = "u" }))'])
     elif action_id == "TileDown":
-        subprocess.Popen(["hyprctl", "dispatch", "movefocus", "d"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.focus({ direction = "d" }))'])
     elif action_id == "CloseWindow":
-        subprocess.Popen(["hyprctl", "dispatch", "killactive"])
-    elif action_id == "ShowDesktop":
-        subprocess.Popen(["hyprctl", "dispatch", "togglespecialworkspace"])
+        subprocess.Popen(["hyprctl", "eval", 'hl.dispatch(hl.dsp.window.close())'])
     elif action_id == "VolumeUp":
-        subprocess.Popen(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+"])
+        subprocess.Popen(["omarchy-audio-output-volume", "raise"])
     elif action_id == "VolumeDown":
-        subprocess.Popen(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"])
+        subprocess.Popen(["omarchy-audio-output-volume", "lower"])
     elif action_id == "Mute":
-        subprocess.Popen(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
+        subprocess.Popen(["omarchy-audio-output-volume", "mute-toggle"])
     elif action_id == "PlayPause":
-        subprocess.Popen(["playerctl", "play-pause"])
+        subprocess.Popen(["omarchy-shell", "media", "playPause"])
     elif action_id == "NextTrack":
-        subprocess.Popen(["playerctl", "next"])
+        subprocess.Popen(["omarchy-shell", "media", "next"])
     elif action_id == "PrevTrack":
-        subprocess.Popen(["playerctl", "previous"])
+        subprocess.Popen(["omarchy-shell", "media", "previous"])
     elif action_id == "Launcher":
         subprocess.Popen(["omarchy-menu"])
+    elif action_id == "Screenshot":
+        subprocess.Popen(["omarchy-capture-screenshot"])
 
 
 # ----------------------------------------------------------------------
@@ -530,7 +532,7 @@ def default_device_config(name: str, kind: str) -> dict:
     return {
         "dpi": 1000,
         "dpi_preset": [800, 1000, 1600, 2400, 4000],
-        "smartshift": {"mode": "auto", "threshold": 12, "torque": 50},
+        "smartshift": {"mode": "auto", "threshold": 10, "torque": 75},
         "scroll": {"invert_y": False, "invert_thumb": False, "hires": True},
         "action_ring": {"enabled": True, "haptics": True, "slots": slots},
         "gestures": gestures,
@@ -610,7 +612,7 @@ def get_full_status() -> dict:
 
         dev["config"] = dev_cfg
         dev["dpi"] = dev_cfg.get("dpi", 1000) if isinstance(dev_cfg, dict) else 1000
-        dev["smartshift"] = dev_cfg.get("smartshift", {"mode": "auto", "threshold": 12, "torque": 50}) if isinstance(dev_cfg, dict) else {"mode": "auto", "threshold": 12, "torque": 50}
+        dev["smartshift"] = dev_cfg.get("smartshift", {"mode": "auto", "threshold": 10, "torque": 75}) if isinstance(dev_cfg, dict) else {"mode": "auto", "threshold": 10, "torque": 75}
         dev["scroll"] = dev_cfg.get("scroll", {"invert_y": False, "invert_thumb": False, "hires": True}) if isinstance(dev_cfg, dict) else {"invert_y": False, "invert_thumb": False, "hires": True}
         dev["action_ring"] = ar_cfg
         dev["gestures"] = gestures_map
@@ -806,6 +808,7 @@ def serve_daemon() -> None:
     acc_dx = 0
     acc_dy = 0
     press_time = 0.0
+    skip_first_raw = True
 
     try:
         status = get_full_status()
@@ -840,6 +843,7 @@ def serve_daemon() -> None:
                                     active_cid = cid
                                     acc_dx = 0
                                     acc_dy = 0
+                                    skip_first_raw = True
                                     press_time = time.time()
                                 elif active_cid is not None:
                                     # Button UP — process action or gesture
@@ -849,7 +853,9 @@ def serve_daemon() -> None:
                                     buttons_map = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
 
                                     dist = math.sqrt(acc_dx * acc_dx + acc_dy * acc_dy)
-                                    if dist < 20:
+                                    elapsed = time.time() - press_time
+
+                                    if dist < 35 or elapsed < 0.25:
                                         # Single Click
                                         act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("HapticPanel", "GestureButton") else "None")
                                         if isinstance(act, dict):
@@ -858,7 +864,7 @@ def serve_daemon() -> None:
                                     else:
                                         # Swipe Gesture / Action Ring direction
                                         angle_deg = math.degrees(math.atan2(acc_dy, acc_dx)) % 360
-                                        # 4-way gesture
+                                        # 4-way gesture: Up (225-315), Down (45-135), Left (135-225), Right (0-45 or 315-360)
                                         if 45 <= angle_deg < 135:
                                             gdir = "Down"
                                         elif 135 <= angle_deg < 225:
@@ -877,10 +883,14 @@ def serve_daemon() -> None:
                                     active_cid = None
                             elif func == 1 and active_cid is not None:
                                 # Raw XY accumulation while button is held
-                                dx = struct.unpack(">h", packet[4:6])[0]
-                                dy = struct.unpack(">h", packet[6:8])[0]
-                                acc_dx += dx
-                                acc_dy += dy
+                                if skip_first_raw:
+                                    # Discard initial contact sensor calibration spike
+                                    skip_first_raw = False
+                                else:
+                                    dx = struct.unpack(">h", packet[4:6])[0]
+                                    dy = struct.unpack(">h", packet[6:8])[0]
+                                    acc_dx += dx
+                                    acc_dy += dy
                 except Exception:
                     pass
 
