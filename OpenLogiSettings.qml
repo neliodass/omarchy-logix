@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -19,6 +20,8 @@ Item {
   property string statusToast: ""
   property bool closingFromHost: false
 
+  property bool opened: false
+
   function resolveService() {
     if (service || !shell) return
     if (typeof shell.ensureService === "function")
@@ -30,7 +33,7 @@ Item {
   function open(payloadJson) {
     closingFromHost = false
     resolveService()
-    window.visible = true
+    root.opened = true
     if (mx) {
       mx.ensureDaemon()
       mx.refresh()
@@ -46,13 +49,13 @@ Item {
 
   function close() {
     closingFromHost = true
-    window.visible = false
+    root.opened = false
     closingFromHost = false
   }
 
   function requestClose() {
     if (shell && typeof shell.hide === "function") shell.hide("io.openlogi.omarchy")
-    else window.visible = false
+    else root.opened = false
   }
 
   function showToast(msg) {
@@ -75,7 +78,7 @@ Item {
   readonly property var mx: root.service || localMx
   readonly property var device: mx ? mx.selectedDevice : null
   readonly property color foreground: Color.foreground
-  readonly property color background: Color.background
+  readonly property color background: Color.popups.background
   readonly property color accent: Color.accent
   readonly property color urgent: Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
@@ -105,46 +108,68 @@ Item {
     return ""
   }
 
-  FloatingWindow {
+  PanelWindow {
     id: window
-    title: "OpenLogi Settings — " + (device ? Model.plainHidText(device.name) : "Logitech MX")
-    color: root.background
-    implicitWidth: 880
-    implicitHeight: 680
-    minimumSize: Qt.size(640, 520)
+    visible: root.opened
+    anchors { top: true; bottom: true; left: true; right: true }
+    color: "transparent"
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.namespace: "omarchy-openlogi-settings"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    onVisibleChanged: {
-      if (!visible && !root.closingFromHost && root.shell && typeof root.shell.hide === "function")
-        root.shell.hide("io.openlogi.omarchy")
+    // Scrim backdrop dismiss area
+    Rectangle {
+      anchors.fill: parent
+      color: Qt.rgba(0, 0, 0, 0.55)
+
+      MouseArea {
+        anchors.fill: parent
+        onClicked: root.requestClose()
+      }
     }
 
-    FocusScope {
-      anchors.fill: parent
-      focus: true
+    // Centered Settings Modal Card
+    Rectangle {
+      anchors.centerIn: parent
+      width: Math.min(parent.width - 40, 920)
+      height: Math.min(parent.height - 40, 720)
+      radius: 12
+      color: root.background
+      border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.15)
+      border.width: 1
 
-      PanelKeyCatcher {
-        id: keyCatcher
+      MouseArea {
         anchors.fill: parent
-        onCloseRequested: root.requestClose()
-        onTextKey: function(t) {
-          if (t === "r" || t === "R") { if (mx) mx.refresh() }
-        }
+      }
 
-        ColumnLayout {
+      FocusScope {
+        anchors.fill: parent
+        focus: true
+
+        PanelKeyCatcher {
+          id: keyCatcher
           anchors.fill: parent
-          spacing: 0
+          onCloseRequested: root.requestClose()
+          onTextKey: function(t) {
+            if (t === "r" || t === "R") { if (mx) mx.refresh() }
+          }
 
-          // Top Header & Navigation Tabs
-          Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 60
-            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+          ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
 
-            RowLayout {
-              anchors.fill: parent
-              anchors.leftMargin: 16
-              anchors.rightMargin: 16
-              spacing: 12
+            // Top Header & Navigation Tabs
+            Rectangle {
+              Layout.fillWidth: true
+              Layout.preferredHeight: 60
+              color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+
+              RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                spacing: 12
 
               OpenLogiIcon {
                 iconSize: 26
@@ -1024,3 +1049,5 @@ Item {
     }
   }
 }
+}
+

@@ -787,6 +787,31 @@ def serve_daemon() -> None:
     except (OSError, IOError):
         sys.exit(0)
 
+def is_daemon_running() -> bool:
+    rdir = get_runtime_dir()
+    lock_path = rdir / "openlogictl.lock"
+    if not lock_path.exists():
+        return False
+    try:
+        f = open(lock_path, "r")
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        f.close()
+        return False
+    except (OSError, IOError):
+        return True
+
+
+def serve_daemon() -> None:
+    rdir = get_runtime_dir()
+    lock_path = rdir / "openlogictl.lock"
+
+    try:
+        lock_fd = open(lock_path, "w")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, IOError):
+        sys.exit(0)
+
     # Initialize device hardware connection and button diversions
     hid_fd = None
     reprog_idx = None
@@ -799,7 +824,6 @@ def serve_daemon() -> None:
             hid_fd = open_hidraw(dev_path)
             if hid_fd is not None:
                 reprog_idx = get_feature_index(hid_fd, 0x1B04)
-                # Divert HapticPanel (0x01A0), Gesture Button (0x00C3), Top Mode Button (0x00C4), Side Buttons
                 for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
                     set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
 
@@ -809,6 +833,7 @@ def serve_daemon() -> None:
     acc_dy = 0
     press_time = 0.0
     skip_first_raw = True
+    last_reconnect = time.time()
 
     try:
         status = get_full_status()
@@ -823,76 +848,98 @@ def serve_daemon() -> None:
                 status = get_full_status()
                 write_status_file(status)
 
+            # Reconnection logic if device was closed / not opened
+            now = time.time()
+            if hid_fd is None and (now - last_reconnect >= 2.0):
+                last_reconnect = now
+                devices, _ = scan_hidraw()
+                if devices and devices[0].get("path"):
+                    hid_fd = open_hidraw(devices[0]["path"])
+                    if hid_fd is not None:
+                        reprog_idx = get_feature_index(hid_fd, 0x1B04)
+                        for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
+                            set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
+
             # Read live hardware HID++ reports from mouse
-            read_fds = [hid_fd] if hid_fd is not None else []
-            r, _, _ = select.select(read_fds, [], [], 0.05)
-            if hid_fd is not None and hid_fd in r:
-                try:
-                    packet = os.read(hid_fd, 64)
-                    if len(packet) >= 4 and packet[0] == 0x11:
-                        feat = packet[2]
-                        func = (packet[3] >> 4) & 0x0F
+            if hid_fd is not None:
+                r, _, _ = select.select([hid_fd], [], [], 0.05)
+                if hid_fd in r:
+                    try:
+                        packet = os.read(hid_fd, 64)
+                        if not packet:
+                            try:
+                                os.close(hid_fd)
+                            except Exception:
+                                pass
+                            hid_fd = None
+                            reprog_idx = None
+                            time.sleep(0.05)
+                            continue
 
-                        # ReprogControlsV4 event
-                        if reprog_idx is not None and feat == reprog_idx:
-                            if func == 0:
-                                # Diverted button press / release
-                                cid = struct.unpack(">H", packet[4:6])[0]
-                                if cid != 0:
-                                    # Button DOWN
-                                    active_cid = cid
-                                    acc_dx = 0
-                                    acc_dy = 0
-                                    skip_first_raw = True
-                                    press_time = time.time()
-                                elif active_cid is not None:
-                                    # Button UP — process action or gesture
-                                    btn_name = CID_TO_BUTTON.get(active_cid, "HapticPanel")
-                                    cfg = load_openlogi_config()
-                                    _, dev_cfg = find_matching_config(cfg.get("devices", {}), devices[0] if devices else {})
-                                    buttons_map = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
+                        if len(packet) >= 4 and packet[0] == 0x11:
+                            feat = packet[2]
+                            func = (packet[3] >> 4) & 0x0F
 
-                                    dist = math.sqrt(acc_dx * acc_dx + acc_dy * acc_dy)
-                                    elapsed = time.time() - press_time
+                            # ReprogControlsV4 event
+                            if reprog_idx is not None and feat == reprog_idx:
+                                if func == 0:
+                                    # Diverted button press / release
+                                    cid = struct.unpack(">H", packet[4:6])[0]
+                                    if cid != 0:
+                                        # Button DOWN
+                                        active_cid = cid
+                                        acc_dx = 0
+                                        acc_dy = 0
+                                        skip_first_raw = True
+                                        press_time = time.time()
+                                    elif active_cid is not None:
+                                        # Button UP — process action or gesture
+                                        btn_name = CID_TO_BUTTON.get(active_cid, "HapticPanel")
+                                        cfg = load_openlogi_config()
+                                        _, dev_cfg = find_matching_config(cfg.get("devices", {}), devices[0] if devices else {})
+                                        buttons_map = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
 
-                                    if dist < 35 or elapsed < 0.25:
-                                        # Single Click
-                                        act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("HapticPanel", "GestureButton") else "None")
-                                        if isinstance(act, dict):
-                                            act = act.get("action", "None")
-                                        dispatch_action(act)
-                                    else:
-                                        # Swipe Gesture / Action Ring direction
-                                        angle_deg = math.degrees(math.atan2(acc_dy, acc_dx)) % 360
-                                        # 4-way gesture: Up (225-315), Down (45-135), Left (135-225), Right (0-45 or 315-360)
-                                        if 45 <= angle_deg < 135:
-                                            gdir = "Down"
-                                        elif 135 <= angle_deg < 225:
-                                            gdir = "Left"
-                                        elif 225 <= angle_deg < 315:
-                                            gdir = "Up"
+                                        dist = math.sqrt(acc_dx * acc_dx + acc_dy * acc_dy)
+                                        elapsed = time.time() - press_time
+
+                                        if dist < 35 or elapsed < 0.25:
+                                            # Single Click
+                                            act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("HapticPanel", "GestureButton") else "None")
+                                            if isinstance(act, dict):
+                                                act = act.get("action", "None")
+                                            dispatch_action(act)
                                         else:
-                                            gdir = "Right"
+                                            # Swipe Gesture / Action Ring direction
+                                            angle_deg = math.degrees(math.atan2(acc_dy, acc_dx)) % 360
+                                            if 45 <= angle_deg < 135:
+                                                gdir = "Down"
+                                            elif 135 <= angle_deg < 225:
+                                                gdir = "Left"
+                                            elif 225 <= angle_deg < 315:
+                                                gdir = "Up"
+                                            else:
+                                                gdir = "Right"
 
-                                        gmap = dev_cfg.get("gestures", {}) if isinstance(dev_cfg, dict) else {}
-                                        gact = gmap.get(gdir, f"Tile{gdir}")
-                                        if isinstance(gact, dict):
-                                            gact = gact.get("action", f"Tile{gdir}")
-                                        dispatch_action(gact)
+                                            gmap = dev_cfg.get("gestures", {}) if isinstance(dev_cfg, dict) else {}
+                                            gact = gmap.get(gdir, f"Tile{gdir}")
+                                            if isinstance(gact, dict):
+                                                gact = gact.get("action", f"Tile{gdir}")
+                                            dispatch_action(gact)
 
-                                    active_cid = None
-                            elif func == 1 and active_cid is not None:
-                                # Raw XY accumulation while button is held
-                                if skip_first_raw:
-                                    # Discard initial contact sensor calibration spike
-                                    skip_first_raw = False
-                                else:
-                                    dx = struct.unpack(">h", packet[4:6])[0]
-                                    dy = struct.unpack(">h", packet[6:8])[0]
-                                    acc_dx += dx
-                                    acc_dy += dy
-                except Exception:
-                    pass
+                                        active_cid = None
+                                elif func == 1 and active_cid is not None:
+                                    # Raw XY accumulation while button is held
+                                    if skip_first_raw:
+                                        skip_first_raw = False
+                                    else:
+                                        dx = struct.unpack(">h", packet[4:6])[0]
+                                        dy = struct.unpack(">h", packet[6:8])[0]
+                                        acc_dx += dx
+                                        acc_dy += dy
+                    except Exception:
+                        pass
+            else:
+                time.sleep(0.05)
 
             now = time.time()
             if now - last_heartbeat >= HEARTBEAT_SEC:
@@ -968,9 +1015,10 @@ def main() -> None:
         }
         cmd_file = rdir / f"cmd-{int(time.time() * 1000)}-{os.getpid()}.json"
         cmd_file.write_text(json.dumps(cmd_data, ensure_ascii=False), encoding="utf-8")
-        process_command(cmd_file)
-        status = get_full_status()
-        write_status_file(status)
+        if not is_daemon_running():
+            process_command(cmd_file)
+            status = get_full_status()
+            write_status_file(status)
         emit({"ok": True, "file": str(cmd_file)})
     elif args.subcommand == "serve":
         serve_daemon()

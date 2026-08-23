@@ -112,10 +112,7 @@ Item {
   }
 
   function refresh(force) {
-    if (daemonWanted) {
-      if (statusFile) statusFile.reload()
-      return
-    }
+    if (statusFile) statusFile.reload()
     discover()
   }
 
