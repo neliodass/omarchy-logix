@@ -116,7 +116,8 @@ PanelWindow {
       MouseArea {
         anchors.fill: parent
         hoverEnabled: true
-        onClicked: root.hideRing()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        onPressed: root.hideRing()
       }
     }
 
@@ -139,6 +140,13 @@ PanelWindow {
         color: Qt.rgba(Color.popups.background.r, Color.popups.background.g, Color.popups.background.b, 0.96)
         border.color: Color.accent
         border.width: 2
+
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+          cursorShape: Qt.PointingHandCursor
+          onPressed: root.hideRing()
+        }
 
         Column {
           anchors.centerIn: parent

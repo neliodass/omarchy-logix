@@ -78,7 +78,7 @@ Panel {
   }
 
   function showActionRing() {
-    if (overlay) overlay.showRing()
+    if (overlay) overlay.toggleRing()
   }
 
   function openFullSettings() {
