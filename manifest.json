@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "io.openlogi.omarchy",
+  "name": "OpenLogi Control",
+  "version": "1.0.0",
+  "author": "OpenLogi & Omarchy Community",
+  "license": "MIT",
+  "homepage": "https://github.com/AprilNEA/OpenLogi",
+  "repository": "https://github.com/AprilNEA/OpenLogi.git",
+  "description": "Logitech MX & OpenLogi control for Omarchy. Smart Ring (Action Ring), gestures, DPI, SmartShift, and full button remaps in a native bar widget & settings window.",
+  "dependencies": {
+    "required": [
+      {
+        "name": "Omarchy",
+        "version": ">=4.0",
+        "purpose": "Quattro / omarchy-shell plugin host (Quickshell)"
+      },
+      {
+        "name": "python3",
+        "package": "python",
+        "purpose": "Runs openlogictl.py helper script"
+      }
+    ],
+    "optional": [
+      {
+        "name": "OpenLogi",
+        "package": "openlogi",
+        "license": "MIT / Apache-2.0",
+        "purpose": "High-performance Rust driver/daemon for Logitech devices with full Smart Ring & gesture support"
+      },
+      {
+        "name": "bluez",
+        "package": "bluez",
+        "purpose": "Bluetooth battery and connection fallback overlay"
+      }
+    ]
+  },
+  "entryPoints": {
+    "bar": "BarWidget.qml",
+    "service": "Service.qml",
+    "settings": "OpenLogiSettings.qml",
+    "overlay": "ActionRingOverlay.qml"
+  },
+  "settings": {
+    "refreshIntervalSec": {
+      "type": "integer",
+      "default": 15,
+      "min": 5,
+      "max": 300,
+      "title": "Refresh interval (seconds)",
+      "description": "How often to scan devices when idle"
+    },
+    "selectedDevice": {
+      "type": "string",
+      "default": "",
+      "title": "Selected device",
+      "description": "Serial number, unit ID, or name of preferred device"
+    },
+    "enableActionRingOverlay": {
+      "type": "boolean",
+      "default": true,
+      "title": "Enable Action Ring Overlay",
+      "description": "Show on-screen radial menu when Smart Ring / Gesture button is triggered"
+    }
+  }
+}
