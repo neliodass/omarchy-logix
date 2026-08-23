@@ -9,8 +9,8 @@ import "Model.js" as Model
 
 Panel {
   id: root
-  moduleName: "io.openlogi.omarchy"
-  ipcTarget: "io.openlogi.omarchy"
+  moduleName: "io.logix.omarchy"
+  ipcTarget: "io.logix.omarchy"
   manageIpc: false
 
   property var sharedMx: null
@@ -83,7 +83,7 @@ Panel {
 
   function openFullSettings() {
     root.close()
-    Quickshell.execDetached(["omarchy-shell", "shell", "summon", "io.openlogi.omarchy", "{}"])
+    Quickshell.execDetached(["omarchy-shell", "shell", "summon", "io.logix.omarchy", "{}"])
   }
 
   Service {
@@ -93,7 +93,7 @@ Panel {
   }
 
   IpcHandler {
-    target: "io.openlogi.omarchy"
+    target: "io.logix.omarchy"
 
     function refresh(): void { root.refresh() }
     function open(): void { root.open() }
@@ -115,14 +115,14 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     tooltipText: {
-      if (!mx.hasDevice) return "OpenLogi Control — No device"
-      var name = Model.plainHidText(mx.selectedDevice && mx.selectedDevice.name ? mx.selectedDevice.name : "Logitech MX")
+      if (!mx.hasDevice) return "LogiX Control — No device connected"
+      var name = Model.plainHidText(mx.selectedDevice && mx.selectedDevice.name ? mx.selectedDevice.name : "Logitech Device")
       var link = Model.connectionLabel(mx.selectedDevice)
       var battery = mx.batteryPercent >= 0 ? (" · " + mx.batteryPercent + "%") : ""
       return name + (link ? (" · " + link) : "") + battery
     }
     iconComponent: Component {
-      OpenLogiIcon {
+      LogiXIcon {
         iconSize: Style.bar.iconCanvas
         color: root.iconColor
         cutoutColor: root.bar ? root.bar.background : Color.background
@@ -181,7 +181,7 @@ Panel {
               anchors.margins: 10
               spacing: 10
 
-              OpenLogiIcon {
+              LogiXIcon {
                 anchors.verticalCenter: parent.verticalCenter
                 iconSize: 26
                 color: root.accent
@@ -205,7 +205,7 @@ Panel {
                 }
 
                 Text {
-                  text: device ? (Model.connectionLabel(device) + " · Battery: " + Model.batteryLabel(device)) : "Scanning sysfs / HID++"
+                  text: device ? (Model.connectionLabel(device) + " · Battery: " + Model.batteryLabel(device)) : "Scanning HID++ devices"
                   color: root.dim
                   font.family: root.fontFamily
                   font.pixelSize: 11
@@ -499,13 +499,13 @@ Panel {
 
             Button {
               Layout.fillWidth: true
-              text: "Refresh Devices"
+              text: "Refresh"
               onClicked: root.refresh()
             }
 
             Button {
               Layout.fillWidth: true
-              text: "Full Settings..."
+              text: "Customize..."
               onClicked: root.openFullSettings()
             }
           }

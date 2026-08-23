@@ -12,8 +12,6 @@ Item {
   property var shell: null
   property bool passive: false
 
-  property bool openlogiInstalled: false
-  property bool openlogiRunning: false
   property bool accessible: true
   property bool refreshing: false
   property bool daemonWanted: false
@@ -37,8 +35,8 @@ Item {
 
   readonly property string runtimeDir: {
     var dir = Quickshell.env("XDG_RUNTIME_DIR")
-    if (dir && dir !== "") return String(dir) + "/omarchy-openlogi"
-    return "/run/user/" + String(runtimeUid || "") + "/omarchy-openlogi"
+    if (dir && dir !== "") return String(dir) + "/omarchy-logix"
+    return "/run/user/" + String(runtimeUid || "") + "/omarchy-logix"
   }
   readonly property string statusPath: runtimeDir + "/status.json"
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 15, 5, 300)
@@ -69,7 +67,7 @@ Item {
   }
 
   function resolvedHelper() {
-    var url = String(Qt.resolvedUrl("openlogictl.py"))
+    var url = String(Qt.resolvedUrl("logixctl.py"))
     if (url.indexOf("file://") === 0) url = decodeURIComponent(url.substring(7))
     return url
   }
@@ -78,8 +76,6 @@ Item {
     try {
       var parsed = Model.parseStatus(raw)
       if (source === "file") lastStatusMs = Date.now()
-      openlogiInstalled = parsed.openlogiInstalled === true
-      openlogiRunning = parsed.openlogiRunning === true
       accessible = parsed.accessible === true
       devices = parsed.devices || []
       adapters = parsed.adapters || []
@@ -89,9 +85,9 @@ Item {
 
       var picked = Model.pickDefaultDevice(devices, preferredId, userPicked)
       if (picked && picked.id) selectedId = String(picked.id)
-      statusText = !devices.length ? (message || "No Logitech device") : (picked ? picked.name : "OpenLogi")
+      statusText = !devices.length ? (message || "No Logitech device") : (picked ? picked.name : "LogiX Control")
     } catch (e) {
-      console.warn("openlogi applyStatus error:", e)
+      console.warn("logix applyStatus error:", e)
     }
   }
 
@@ -114,72 +110,57 @@ Item {
   function refresh(force) {
     if (statusFile) statusFile.reload()
     discover()
+    ensureDaemon()
   }
 
-  function selectDevice(id) {
-    userPicked = true
-    selectedId = String(id || "")
-  }
+  function writeCmd(type, payload, targetDeviceId) {
+    var devId = targetDeviceId || (selectedDevice ? selectedDevice.id : "")
+    if (!devId && devices.length > 0) devId = devices[0].id
+    if (!devId) devId = "default"
 
-  function updateDeviceInMemory(deviceId, fn) {
-    var next = []
-    for (var i = 0; i < devices.length; i++) {
-      var d = JSON.parse(JSON.stringify(devices[i]))
-      if (d.id === deviceId) {
-        fn(d)
-      }
-      next.push(d)
-    }
-    devices = next
-  }
-
-  function writeCmd(type, payload) {
-    if (helperPath === "") return
-    var devId = selectedDevice ? selectedDevice.id : ""
     var payloadJson = JSON.stringify(payload || {})
-    Quickshell.execDetached(["python3", helperPath, "write-cmd", type, devId, payloadJson])
+    Quickshell.execDetached(["python3", helperPath, "write-cmd", type, String(devId), payloadJson])
+    ensureDaemon()
     Qt.callLater(function() {
       if (statusFile) statusFile.reload()
-      discover()
     })
   }
 
+  function updateDeviceInMemory(deviceId, updateFn) {
+    var copy = []
+    for (var i = 0; i < devices.length; i++) {
+      var d = devices[i]
+      if (d.id === deviceId || d.name === deviceId || deviceId === "default") {
+        var devCopy = JSON.parse(JSON.stringify(d))
+        updateFn(devCopy)
+        copy.push(devCopy)
+      } else {
+        copy.push(d)
+      }
+    }
+    devices = copy
+  }
+
   function setDpi(deviceId, dpi) {
-    updateDeviceInMemory(deviceId, function(d) { d.dpi = dpi })
+    updateDeviceInMemory(deviceId, function(d) {
+      d.dpi = dpi
+    })
     writeCmd("set_dpi", { dpi: dpi })
   }
 
   function setSmartShift(deviceId, mode, threshold, torque) {
+    var torqVal = (torque !== undefined && torque !== null) ? torque : 75
     updateDeviceInMemory(deviceId, function(d) {
-      if (!d.smartshift) d.smartshift = {}
-      if (mode !== undefined && mode !== null) d.smartshift.mode = mode
-      if (threshold !== undefined && threshold !== null) d.smartshift.threshold = threshold
-      if (torque !== undefined && torque !== null) d.smartshift.torque = torque
+      d.smartshift = { mode: mode, threshold: threshold, torque: torqVal }
     })
-    var dev = selectedDevice
-    var curThresh = threshold !== undefined && threshold !== null ? threshold : (dev && dev.smartshift && dev.smartshift.threshold !== undefined ? dev.smartshift.threshold : 10)
-    var curTorque = torque !== undefined && torque !== null ? torque : (dev && dev.smartshift && dev.smartshift.torque !== undefined ? dev.smartshift.torque : 75)
-    var curMode = mode || (dev && dev.smartshift ? dev.smartshift.mode : "auto")
-    writeCmd("set_smartshift", { mode: curMode, threshold: curThresh, torque: curTorque })
+    writeCmd("set_smartshift", { mode: mode, threshold: threshold, torque: torqVal })
   }
 
   function setScroll(deviceId, invertY, invertThumb, hires) {
     updateDeviceInMemory(deviceId, function(d) {
-      if (!d.scroll) d.scroll = {}
-      d.scroll.invert_y = invertY
-      d.scroll.invert_thumb = invertThumb
-      d.scroll.hires = hires
+      d.scroll = { invert_y: invertY, invert_thumb: invertThumb, hires: hires }
     })
     writeCmd("set_scroll", { invert_y: invertY, invert_thumb: invertThumb, hires: hires })
-  }
-
-  function setActionRing(deviceId, enabled, haptics) {
-    updateDeviceInMemory(deviceId, function(d) {
-      if (!d.action_ring) d.action_ring = { slots: {} }
-      d.action_ring.enabled = enabled
-      d.action_ring.haptics = haptics
-    })
-    writeCmd("set_action_ring", { enabled: enabled, haptics: haptics })
   }
 
   function setActionRingSlot(deviceId, slot, action, label) {
@@ -270,42 +251,30 @@ Item {
   Process {
     id: discoverProcess
     running: false
-    command: ["python3", root.helperPath, "discover"]
     stdout: StdioCollector {
-      id: discoverStdout
       waitForEnd: true
       onStreamFinished: {
-        root.refreshing = false
-        if (text) root.applyStatus(text, "discover")
+        if (text && text.length > 0) root.applyStatus(text, "discover")
       }
     }
-    onExited: root.refreshing = false
   }
 
   Timer {
-    id: pollTimer
     interval: root.refreshIntervalSec * 1000
-    repeat: true
     running: !root.passive
+    repeat: true
     triggeredOnStart: true
-    onTriggered: root.discover()
-  }
-
-  Component.onCompleted: {
-    if (!passive) {
-      daemonWanted = true
-      mkdirProcess.running = true
-      Qt.callLater(function() {
-        if (statusFile) statusFile.reload()
-        root.discover()
-      })
+    onTriggered: {
+      root.ensureDaemon()
+      if (statusFile) statusFile.reload()
     }
   }
 
-  Component.onDestruction: {
-    daemonWanted = false
-    if (daemon.running) daemon.running = false
-    if (discoverProcess.running) discoverProcess.running = false
-    Quickshell.execDetached(["python3", root.helperPath, "cleanup"])
+  Component.onCompleted: {
+    mkdirProcess.running = true
+    if (!root.passive) {
+      root.ensureDaemon()
+      root.discover()
+    }
   }
 }

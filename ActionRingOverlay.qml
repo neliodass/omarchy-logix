@@ -22,9 +22,9 @@ PanelWindow {
   function resolveService() {
     if (service || !shell) return
     if (typeof shell.ensureService === "function")
-      service = shell.ensureService("io.openlogi.omarchy") || null
+      service = shell.ensureService("io.logix.omarchy") || null
     if (!service && typeof shell.serviceFor === "function")
-      service = shell.serviceFor("io.openlogi.omarchy")
+      service = shell.serviceFor("io.logix.omarchy")
   }
 
   function updatePosition(x, y) {
@@ -97,7 +97,7 @@ PanelWindow {
   anchors { top: true; bottom: true; left: true; right: true }
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
-  WlrLayershell.namespace: "omarchy-openlogi-ring"
+  WlrLayershell.namespace: "omarchy-logix-ring"
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 

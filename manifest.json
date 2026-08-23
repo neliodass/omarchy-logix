@@ -1,75 +1,25 @@
 {
-  "schemaVersion": 1,
-  "id": "io.openlogi.omarchy",
-  "name": "OpenLogi Control",
+  "schema": "https://omarchy.org/schemas/plugin-manifest.v1.json",
+  "id": "io.logix.omarchy",
+  "name": "LogiX Control",
   "version": "1.0.0",
-  "author": "OpenLogi & Omarchy Contributors",
-  "license": "MIT",
-  "homepage": "https://github.com/AprilNEA/OpenLogi",
-  "repository": "https://github.com/AprilNEA/OpenLogi.git",
-  "description": "Logitech MX & OpenLogi control for Omarchy. Smart Ring (Action Ring), gestures, DPI, SmartShift, and full button remaps.",
-  "dependencies": {
-    "required": [
-      {
-        "name": "Omarchy",
-        "version": ">=4.0",
-        "purpose": "Quattro / omarchy-shell plugin host (Quickshell)"
-      },
-      {
-        "name": "python3",
-        "package": "python",
-        "purpose": "Runs openlogictl.py helper script"
-      }
-    ],
-    "optional": [
-      {
-        "name": "OpenLogi",
-        "package": "openlogi",
-        "license": "MIT / Apache-2.0",
-        "purpose": "High-performance Rust driver/daemon for Logitech devices with full Smart Ring & gesture support"
-      },
-      {
-        "name": "BlueZ",
-        "package": "bluez",
-        "purpose": "Bluetooth battery overlay fallback"
-      }
-    ]
-  },
-  "kinds": [
-    "bar-widget",
-    "panel",
-    "service"
-  ],
+  "description": "Advanced Logitech HID++ Driver, Smart Ring Radial Wheel & Gestures for Omarchy 4.0",
+  "author": "Bartek Pieróg",
+  "type": "bar-widget",
   "entryPoints": {
     "barWidget": "BarWidget.qml",
-    "panel": "OpenLogiSettings.qml",
+    "settings": "LogiXSettings.qml",
     "service": "Service.qml"
   },
-  "barWidget": {
-    "displayName": "OpenLogi Control",
-    "description": "Smart Ring (Action Ring), Gestures, Battery, and settings for Logitech MX devices via OpenLogi",
-    "category": "Devices",
-    "allowMultiple": false,
-    "defaultSection": "right",
-    "defaults": {
-      "refreshIntervalSec": 15
+  "capabilities": {
+    "process": {
+      "exec": [
+        {
+          "command": "python3",
+          "purpose": "Runs logixctl.py hardware driver and gesture daemon"
+        }
+      ]
     },
-    "schema": [
-      {
-        "key": "refreshIntervalSec",
-        "type": "integer",
-        "label": "Discover interval (seconds)",
-        "min": 5,
-        "max": 300,
-        "step": 5,
-        "defaultValue": 15
-      },
-      {
-        "key": "selectedDevice",
-        "type": "string",
-        "label": "Preferred device id",
-        "defaultValue": ""
-      }
-    ]
+    "dependencies": []
   }
 }

@@ -1,5 +1,5 @@
-// Model.js — OpenLogi Data Models & Helpers for Omarchy 4.0
-// Zero-dependency pure JS logic
+// Model.js — LogiX Control Data Models & Helpers for Omarchy 4.0
+// Pure JS zero-dependency state parsing and configuration mapping
 
 var ACTION_RING_SLOTS = [
   { id: "Top", label: "Top", angle: 0, glyph: "↑", defaultAction: "MissionControl" },
@@ -31,8 +31,8 @@ var HARDWARE_BUTTONS = [
 ]
 
 var AVAILABLE_ACTIONS = [
-  { id: "ShowActionRing", label: "Smart Action Ring", category: "OpenLogi", icon: "donut_large" },
-  { id: "Gestures", label: "Directional Gestures", category: "OpenLogi", icon: "pan_tool" },
+  { id: "ShowActionRing", label: "Smart Action Ring", category: "LogiX", icon: "donut_large" },
+  { id: "Gestures", label: "Directional Gestures", category: "LogiX", icon: "pan_tool" },
   { id: "MissionControl", label: "Overview / Mission Control", category: "Window", icon: "dashboard" },
   { id: "NextWorkspace", label: "Next Workspace", category: "Window", icon: "arrow_forward" },
   { id: "PrevWorkspace", label: "Previous Workspace", category: "Window", icon: "arrow_back" },
@@ -137,13 +137,13 @@ function getButtons(device) {
 
 function parseStatus(raw) {
   if (!raw || typeof raw !== "string") {
-    return { openlogiInstalled: false, openlogiRunning: false, accessible: false, devices: [], adapters: [], message: "No data" }
+    return { driver: "LogiX Engine", accessible: false, devices: [], adapters: [], message: "No data" }
   }
   try {
     var obj = JSON.parse(raw.trim())
     return obj
   } catch (e) {
-    return { openlogiInstalled: false, openlogiRunning: false, accessible: false, devices: [], adapters: [], message: "Parse error" }
+    return { driver: "LogiX Engine", accessible: false, devices: [], adapters: [], message: "Parse error" }
   }
 }
 

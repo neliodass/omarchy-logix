@@ -1,91 +1,87 @@
-# OpenLogi Control dla Omarchy 4.0
+# LogiX Control for Omarchy 4.0 🖱️⚡
 
-<p align="center">
-  <strong>Nowoczesny plugin do Omarchy 4.0 dla urządzeń Logitech MX z pełnym wsparciem dla OpenLogi, Smart Ring (Action Ring) oraz gestów.</strong>
-</p>
+> **Advanced Logitech HID++ Driver, Smart Ring Radial Wheel & Gestures for Omarchy 4.0 & Hyprland**
 
----
-
-## 🌟 Dlaczego OpenLogi zamiast Solaar?
-
-W tradycyjnym `solaar` przycisk **Smart Ring / Action Ring** (np. w myszkach MX Master 3, MX Master 3S, MX Master 4) często nie jest poprawnie wykrywany jako fizyczny przycisk ani nie wspiera pełnych gestów pod Waylandem/Hyprlandem. 
-
-**OpenLogi** ([github.com/AprilNEA/OpenLogi](https://github.com/AprilNEA/OpenLogi)) to nowoczesna, napisana w Ruście alternatywa dla Logi Options+, która natywnie i sprzętowo obsługuje:
-- **Smart Ring (Action Ring)**: Radialne koło akcji z **8 slotami** (`Góra`, `Prawy-Góra`, `Prawo`, `Prawy-Dół`, `Dół`, `Lewy-Dół`, `Lewo`, `Lewy-Góra`).
-- **5-kierunkowe Gesty**: Niezależne akcje dla przeciągnięcia w górę, dół, lewo, prawo oraz pojedynczego kliknięcia.
-- **Haptykę**: Sprzężenie zwrotne przy nawigacji po Smart Ring.
-- **Pełne DPI**: Płynna regulacja do 8000 DPI (krok 50 DPI) + szybkie presety.
-- **SmartShift**: Przełączanie trybu zapadkowego i płynnego kółka z regulacją progu czułości.
-- **Płynne Przewijanie (Hi-Res)** & Odwracanie osi Y i rolki kciuka.
-- **Klawiatury MX**: Podświetlenie, zamiana klawiszy Fn, blokady Caps/Win.
-- **Zero Telemetrii i Chmury**: 100% lokalna konfiguracja w formacie `~/.config/openlogi/config.toml`.
+LogiX Control is a lightweight, zero-overhead Logitech HID++ 2.0 integration designed specifically for **Omarchy 4.0** and **Hyprland**. It bypasses external heavy daemons and communicates directly with your Logitech hardware via direct kernel `hidraw` reports.
 
 ---
 
-## 🚀 Instalacja
+## ✨ Key Features
 
-### 1. Dodanie pluginu do Omarchy 4.0
+- 🌟 **Smart Ring Radial Wheel (Thumb Rest Button):**
+  - Instant circular popout menu directly at your cursor position (`hyprctl cursorpos`).
+  - 8 customizable radial action slots (Window tiling, workspace navigation, volume control, overview).
+  - Dismiss by clicking outside, clicking the center hub, or pressing the thumb button again (Toggle).
+- 🖐️ **5-Way Directional Gestures:**
+  - Hold thumb button + flick (Up, Down, Left, Right) to trigger actions.
+  - Configurable **Swipe Distance (Flick Sensitivity)** slider from `6 px (Ultra Short Flick)` to `45 px`.
+- ⚙️ **SmartShift Ratchet Wheel Tuning:**
+  - Switch between **Smart Auto-Switch**, **Always Ratchet**, and **Always Free Spin**.
+  - **Ratchet Motor Force / Torque slider** (`1% – 100%`).
+  - **Auto-Disengage Sensitivity slider** (`1 – 35`).
+- ⚡ **Precision Pointer Speed (DPI):**
+  - Real-time hardware DPI slider (`200 – 8000 DPI`).
+- 🔄 **Scroll Customization:**
+  - Invert vertical wheel direction.
+  - Invert horizontal thumb wheel direction.
+- 🎯 **Full Modal Settings & Bar Popover:**
+  - Modern Layer-Shell popup from the topbar.
+  - Full-featured modal dialog for button reprogramming, gesture mapping, and device telemetry.
+- 🔋 **Live Battery & Connection Monitoring:**
+  - Automatic battery percentage discovery and visual indicator on the topbar.
 
+---
+
+## 🚀 Installation & Setup
+
+### 1. Install to Omarchy Plugins
+Clone or copy this repository into your Omarchy plugin directory:
 ```bash
-omarchy plugin add /home/bartek/.gemini/antigravity/scratch/omarchy-openlogi --enable
+git clone https://github.com/YOUR_USERNAME/omarchy-logix.git ~/.config/omarchy/plugins/io.logix.omarchy
 ```
-*(lub ze zdalnego repozytorium po opublikowaniu)*:
+
+### 2. Configure Udev Permissions (One-Time Setup)
+To grant user-space read/write permissions for your Logitech devices across all Bluetooth and USB reconnects:
 ```bash
-omarchy plugin add https://github.com/twoj-login/omarchy-openlogi.git --enable
+sudo tee /etc/udev/rules.d/99-logix-hidpp.rules << 'EOF'
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="046d", MODE="0666", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="*046D*", MODE="0666", TAG+="uaccess"
+EOF
+sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
 ```
+*(Or simply click the **"Fix Permissions"** button in the LogiX bar menu).*
 
-### 2. Instalacja OpenLogi (opcjonalna, zalecana)
-
-Jeśli nie masz jeszcze zainstalowanego OpenLogi na Arch Linux:
-```bash
-# Instalacja z AUR lub budowa z repozytorium OpenLogi
-cargo install --git https://github.com/AprilNEA/OpenLogi.git openlogi-cli
-```
-
-### 3. Przeładowanie powłoki Omarchy
-
+### 3. Restart Omarchy Shell
 ```bash
 omarchy restart shell
 ```
 
 ---
 
-## 🎮 Użycie
+## 🎮 Supported Hardware
 
-| Akcja | Opis |
-| :--- | :--- |
-| **Lewy klik na ikonie paska** | Otwiera podręczne menu popover (DPI, SmartShift, stan baterii, Smart Ring). |
-| **Prawy klik na ikonie paska** | Wymusza natychmiastowe odświeżenie stanu urządzeń z pominięciem pamięci podręcznej. |
-| **Przycisk "All Settings"** | Otwiera pełne okno konfiguracji ze schematem 8 slotów Smart Ring i mapowaniem przycisków. |
-| **Przycisk Smart Ring na myszy** | Otwiera radialne menu na ekranie (`ActionRingOverlay.qml`). |
+- **Logitech MX Master Series:** MX Master 4, MX Master 3S, MX Master 3, MX Master 2S, MX Anywhere 3/3S.
+- **Logitech MX Keys & Craft Keyboards.**
+- **Logitech Ergo Series:** MX Vertical, Lift, ERGO M575, MX Ergo.
 
-### Sterowanie z terminala (Omarchy IPC)
+---
+
+## 🛠️ CLI Utilities
+
+The backend driver CLI `logixctl.py` can also be run independently:
 
 ```bash
-# Otwarcie pełnego okna ustawień Smart Ring
-omarchy-shell shell summon io.openlogi.omarchy '{}'
+# Discover connected devices and output JSON status
+python3 logixctl.py status
 
-# Pokazanie / ukrycie panelu paska
-omarchy-shell ipc io.openlogi.omarchy toggle
+# Run background driver daemon
+python3 logixctl.py serve
+
+# Trigger action ring via Omarchy IPC
+omarchy-shell io.logix.omarchy showActionRing
 ```
 
 ---
 
-## ⚙️ Struktura Plików Pluginu
-
-- `manifest.json` – Manifest kompatybilny z Omarchy 4.0 / Quattro (punkty wejścia dla paska, usługi, okna ustawień i nakładki).
-- `BarWidget.qml` – Wskaźnik na górnym pasku Omarchy z ikoną stanu baterii i połączenia.
-- `Panel.qml` – Podręczne menu z suwakami DPI, SmartShift i szybkimi przełącznikami.
-- `OpenLogiSettings.qml` – Pełny panel z interaktywnym wizualizatorem 8 slotów Action Ring i edytorem gestów.
-- `ActionRingOverlay.qml` – Radialna nakładka HUD na ekranie dla Smart Ring.
-- `OpenLogiIcon.qml` – Wektorowa ikona myszy/klawiatury MX.
-- `Service.qml` – Singleton usługi działający w procesie `omarchy-shell`.
-- `Model.js` – Logika danych, mapowanie akcji, slotów i kolorów.
-- `openlogictl.py` – Backend komunikujący się z `openlogi` oraz czytający/zapisujący `~/.config/openlogi/config.toml`.
-- `test/` – Testy jednostkowe weryfikujące działanie parsera i kolejki poleceń.
-
----
-
-## 📜 Licencja
-
-Wtyczka wydana na licencji **MIT**. Kompatybilna z OpenLogi i Omarchy 4.0.
+## 📄 License
+MIT License. Created by Bartek Pieróg for Omarchy 4.0.
