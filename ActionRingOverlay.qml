@@ -15,6 +15,8 @@ PanelWindow {
   property var activeDevice: service ? service.selectedDevice : null
   property string highlightedSlot: ""
   property bool open: false
+  property var targetScreen: null
+  screen: targetScreen
 
   property real ringCenterX: 960
   property real ringCenterY: 540
@@ -27,33 +29,42 @@ PanelWindow {
       service = shell.serviceFor("io.logix.omarchy")
   }
 
-  function updatePosition(x, y) {
-    if (x !== undefined && y !== undefined && x > 0 && y > 0) {
+  function updatePosition(monitorName, localX, localY) {
+    if (monitorName && Quickshell.screens && Quickshell.screens.length > 0) {
+      for (var i = 0; i < Quickshell.screens.length; i++) {
+        var s = Quickshell.screens[i]
+        if (s && s.name === monitorName) {
+          targetScreen = s
+          break
+        }
+      }
+    }
+    if (localX !== undefined && localY !== undefined && localX > 0 && localY > 0) {
       // Clamp within screen boundaries so the wheel (440x440) is always fully visible
       var halfW = 230
       var halfH = 230
-      var winW = root.width > 0 ? root.width : 1920
-      var winH = root.height > 0 ? root.height : 1080
+      var winW = (targetScreen && targetScreen.width > 0) ? targetScreen.width : (root.width > 0 ? root.width : 1920)
+      var winH = (targetScreen && targetScreen.height > 0) ? targetScreen.height : (root.height > 0 ? root.height : 1080)
       var minX = halfW + 10
       var maxX = winW - halfW - 10
       var minY = halfH + 10
       var maxY = winH - halfH - 10
 
-      ringCenterX = Math.max(minX, Math.min(maxX, x))
-      ringCenterY = Math.max(minY, Math.min(maxY, y))
+      ringCenterX = Math.max(minX, Math.min(maxX, localX))
+      ringCenterY = Math.max(minY, Math.min(maxY, localY))
     }
   }
 
   Process {
     id: cursorProbe
-    command: ["hyprctl", "cursorpos", "-j"]
+    command: ["python3", "-c", "import subprocess, json; c=json.loads(subprocess.check_output(['hyprctl', 'cursorpos', '-j'])); ms=json.loads(subprocess.check_output(['hyprctl', 'monitors', '-j'])); cx=c.get('x',0); cy=c.get('y',0); tm=next((m for m in ms if m.get('x',0)<=cx<m.get('x',0)+m.get('width',1920)/m.get('scale',1.0) and m.get('y',0)<=cy<m.get('y',0)+m.get('height',1080)/m.get('scale',1.0)), next((m for m in ms if m.get('focused')), ms[0] if ms else {})); lx=cx-tm.get('x',0); ly=cy-tm.get('y',0); print(json.dumps({'monitor': tm.get('name',''), 'x': lx, 'y': ly}))"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         try {
-          var pos = JSON.parse(text)
-          if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
-            root.updatePosition(pos.x, pos.y)
+          var res = JSON.parse(text)
+          if (res) {
+            root.updatePosition(res.monitor, res.x, res.y)
           }
         } catch (e) {}
       }
