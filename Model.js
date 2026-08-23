@@ -62,16 +62,35 @@ var AVAILABLE_ACTIONS = [
   { id: "None", label: "Do Nothing", category: "None", icon: "block" }
 ]
 
+function normalizeActionId(id) {
+  if (!id) return ""
+  var map = {
+    "ToggleMaximize": "MaximizeWindow",
+    "Fullscreen": "MaximizeWindow",
+    "ToggleOverview": "MissionControl",
+    "Overview": "MissionControl",
+    "WorkspaceNext": "NextWorkspace",
+    "WorkspacePrev": "PrevWorkspace",
+    "FocusNextWindow": "TileRight",
+    "FocusPrevWindow": "TileLeft",
+    "FocusUpWindow": "TileUp",
+    "FocusDownWindow": "TileDown"
+  }
+  return map[id] || id
+}
+
 function actionLabel(actionId) {
+  var norm = normalizeActionId(actionId)
   for (var i = 0; i < AVAILABLE_ACTIONS.length; i++) {
-    if (AVAILABLE_ACTIONS[i].id === actionId) return AVAILABLE_ACTIONS[i].label
+    if (AVAILABLE_ACTIONS[i].id === norm) return AVAILABLE_ACTIONS[i].label
   }
   return actionId || "Do Nothing"
 }
 
 function actionIcon(actionId) {
+  var norm = normalizeActionId(actionId)
   for (var i = 0; i < AVAILABLE_ACTIONS.length; i++) {
-    if (AVAILABLE_ACTIONS[i].id === actionId) return AVAILABLE_ACTIONS[i].icon
+    if (AVAILABLE_ACTIONS[i].id === norm) return AVAILABLE_ACTIONS[i].icon
   }
   return "extension"
 }

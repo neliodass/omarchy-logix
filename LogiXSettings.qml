@@ -421,7 +421,7 @@ Item {
                           width: ListView.view.width
                           height: 40
                           radius: 6
-                          property bool isAssigned: root.currentAssignedAction() === modelData.id
+                          property bool isAssigned: Model.normalizeActionId(root.currentAssignedAction()) === Model.normalizeActionId(modelData.id)
                           color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
                           RowLayout {
@@ -607,7 +607,7 @@ Item {
                           width: ListView.view.width
                           height: 40
                           radius: 6
-                          property bool isAssigned: root.currentAssignedAction() === modelData.id
+                          property bool isAssigned: Model.normalizeActionId(root.currentAssignedAction()) === Model.normalizeActionId(modelData.id)
                           color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
                           RowLayout {
@@ -880,7 +880,7 @@ Item {
                           width: ListView.view.width
                           height: 40
                           radius: 6
-                          property bool isAssigned: root.currentAssignedAction() === modelData.id
+                          property bool isAssigned: Model.normalizeActionId(root.currentAssignedAction()) === Model.normalizeActionId(modelData.id)
                           color: isAssigned ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
 
                           RowLayout {

@@ -24,15 +24,26 @@ from typing import Any, Dict, List, Optional, Tuple
 # ----------------------------------------------------------------------
 
 ACTION_RING_SLOTS = [
-    {"id": "Slot0", "angle": 0, "label": "Slot 1 (North)", "defaultAction": "ToggleMaximize", "glyph": "🗖"},
-    {"id": "Slot1", "angle": 45, "label": "Slot 2 (North-East)", "defaultAction": "FocusNextWindow", "glyph": "🡵"},
-    {"id": "Slot2", "angle": 90, "label": "Slot 3 (East)", "defaultAction": "WorkspaceNext", "glyph": "🡲"},
-    {"id": "Slot3", "angle": 135, "label": "Slot 4 (South-East)", "defaultAction": "VolumeUp", "glyph": "🡶"},
-    {"id": "Slot4", "angle": 180, "label": "Slot 5 (South)", "defaultAction": "ToggleOverview", "glyph": "🗔"},
-    {"id": "Slot5", "angle": 225, "label": "Slot 6 (South-West)", "defaultAction": "VolumeDown", "glyph": "🡷"},
-    {"id": "Slot6", "angle": 270, "label": "Slot 7 (West)", "defaultAction": "WorkspacePrev", "glyph": "🡰"},
-    {"id": "Slot7", "angle": 315, "label": "Slot 8 (North-West)", "defaultAction": "FocusPrevWindow", "glyph": "🡴"},
+    {"id": "Top", "angle": 0, "label": "Top", "defaultAction": "ToggleMaximize", "glyph": "🗖"},
+    {"id": "TopRight", "angle": 45, "label": "Top Right", "defaultAction": "FocusNextWindow", "glyph": "🡵"},
+    {"id": "Right", "angle": 90, "label": "Right", "defaultAction": "WorkspaceNext", "glyph": "🡲"},
+    {"id": "BottomRight", "angle": 135, "label": "Bottom Right", "defaultAction": "VolumeUp", "glyph": "🡶"},
+    {"id": "Bottom", "angle": 180, "label": "Bottom", "defaultAction": "ToggleOverview", "glyph": "🗔"},
+    {"id": "BottomLeft", "angle": 225, "label": "Bottom Left", "defaultAction": "VolumeDown", "glyph": "🡷"},
+    {"id": "Left", "angle": 270, "label": "Left", "defaultAction": "WorkspacePrev", "glyph": "🡰"},
+    {"id": "TopLeft", "angle": 315, "label": "Top Left", "defaultAction": "FocusPrevWindow", "glyph": "🡴"},
 ]
+
+SLOT_ALIASES = {
+    "Slot0": "Top",
+    "Slot1": "TopRight",
+    "Slot2": "Right",
+    "Slot3": "BottomRight",
+    "Slot4": "Bottom",
+    "Slot5": "BottomLeft",
+    "Slot6": "Left",
+    "Slot7": "TopLeft",
+}
 
 GESTURE_DIRECTIONS = [
     {"id": "Up", "label": "Swipe Up", "defaultAction": "ToggleMaximize", "glyph": "🡹"},
@@ -561,8 +572,13 @@ def get_full_status() -> dict:
         raw_slots = ar_cfg.get("slots", {}) if isinstance(ar_cfg, dict) else {}
         for slot in ACTION_RING_SLOTS:
             sid = slot["id"]
-            if sid in raw_slots:
-                val = raw_slots[sid]
+            val = raw_slots.get(sid)
+            if val is None:
+                for alias_k, canonical in SLOT_ALIASES.items():
+                    if canonical == sid and alias_k in raw_slots:
+                        val = raw_slots[alias_k]
+                        break
+            if val is not None:
                 act = val if isinstance(val, str) else (val.get("action", slot["defaultAction"]) if isinstance(val, dict) else slot["defaultAction"])
                 lbl = val.get("label", act) if isinstance(val, dict) else act
                 slots_map[sid] = {"action": act, "label": lbl}
@@ -687,6 +703,7 @@ def process_command(cmd_file: Path) -> None:
         action = payload.get("action")
         label = payload.get("label", action)
         if slot:
+            slot = SLOT_ALIASES.get(slot, slot)
             cfg = load_logix_config()
             cfg_devices = cfg.get("devices", {})
             target_key = device_id
