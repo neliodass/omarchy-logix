@@ -872,7 +872,13 @@ def serve_daemon() -> None:
                                         # Button UP — process action or gesture
                                         btn_name = CID_TO_BUTTON.get(active_cid, "HapticPanel")
                                         cfg = load_logix_config()
-                                        _, dev_cfg = find_matching_config(cfg.get("devices", {}), devices[0] if devices else {})
+                                        cfg_devices = cfg.get("devices", {})
+                                        dev_cfg = {}
+                                        if cfg_devices:
+                                            for k, v in cfg_devices.items():
+                                                if isinstance(v, dict):
+                                                    dev_cfg = v
+                                                    break
                                         buttons_map = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
                                         g_thresh = int(dev_cfg.get("gesture_distance", 15)) if isinstance(dev_cfg, dict) else 15
 
