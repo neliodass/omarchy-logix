@@ -322,36 +322,40 @@ def dispatch_action(action_id: str) -> None:
 
     if action_id == "ShowActionRing":
         subprocess.Popen(["omarchy-shell", "io.logix.omarchy", "showActionRing"])
-    elif action_id == "ToggleOverview":
+    elif action_id in ("ToggleOverview", "Overview", "MissionControl"):
         subprocess.Popen(["omarchy-shell", "overview", "toggle"])
-    elif action_id == "WorkspaceNext":
+    elif action_id in ("WorkspaceNext", "NextWorkspace"):
         run_hyprctl_eval('hl.dsp.focus({ workspace = "e+1" })')
-    elif action_id == "WorkspacePrev":
+    elif action_id in ("WorkspacePrev", "PrevWorkspace"):
         run_hyprctl_eval('hl.dsp.focus({ workspace = "e-1" })')
-    elif action_id == "ToggleMaximize":
+    elif action_id in ("ToggleMaximize", "MaximizeWindow", "Fullscreen"):
         run_hyprctl_eval("hl.dsp.window.fullscreen()")
-    elif action_id == "CloseWindow":
+    elif action_id in ("CloseWindow",):
         run_hyprctl_eval("hl.dsp.window.close()")
-    elif action_id == "FocusNextWindow":
+    elif action_id in ("FocusNextWindow", "TileRight"):
         run_hyprctl_eval('hl.dsp.focus({ direction = "r" })')
-    elif action_id == "FocusPrevWindow":
+    elif action_id in ("FocusPrevWindow", "TileLeft"):
         run_hyprctl_eval('hl.dsp.focus({ direction = "l" })')
-    elif action_id == "FocusUpWindow":
-        run_hyprctl_eval('hl.dsp.focus({ direction = "u" })')
-    elif action_id == "FocusDownWindow":
-        run_hyprctl_eval('hl.dsp.focus({ direction = "d" })')
-    elif action_id == "VolumeUp":
+    elif action_id in ("FocusUpWindow", "TileUp"):
+        run_hyprctl_eval("hl.dsp.window.fullscreen()")
+    elif action_id in ("FocusDownWindow", "TileDown"):
+        subprocess.Popen(["omarchy-shell", "overview", "toggle"])
+    elif action_id in ("VolumeUp",):
         subprocess.Popen(["omarchy-audio-output-volume", "raise"])
-    elif action_id == "VolumeDown":
+    elif action_id in ("VolumeDown",):
         subprocess.Popen(["omarchy-audio-output-volume", "lower"])
-    elif action_id == "VolumeMute":
+    elif action_id in ("VolumeMute", "Mute"):
         subprocess.Popen(["omarchy-audio-output-volume", "mute-toggle"])
-    elif action_id == "MediaPlayPause":
+    elif action_id in ("MediaPlayPause", "PlayPause"):
         subprocess.Popen(["omarchy-shell", "media", "playPause"])
-    elif action_id == "MediaNext":
+    elif action_id in ("MediaNext", "NextTrack"):
         subprocess.Popen(["omarchy-shell", "media", "next"])
-    elif action_id == "MediaPrev":
+    elif action_id in ("MediaPrev", "PrevTrack"):
         subprocess.Popen(["omarchy-shell", "media", "previous"])
+    elif action_id in ("Screenshot",):
+        subprocess.Popen(["omarchy-screenshot"])
+    elif action_id in ("Launcher",):
+        subprocess.Popen(["omarchy-menu"])
     elif action_id.startswith("Tile"):
         direction = action_id.replace("Tile", "").lower()
         if direction == "up":
@@ -767,6 +771,17 @@ def is_daemon_running() -> bool:
         return True
 
 
+def get_active_mouse_path() -> Optional[str]:
+    devices, _ = scan_hidraw()
+    for d in devices:
+        if d.get("kind") == "mouse" and d.get("path") and d.get("accessible"):
+            return d["path"]
+    for d in devices:
+        if d.get("path") and d.get("accessible"):
+            return d["path"]
+    return None
+
+
 def serve_daemon() -> None:
     rdir = get_runtime_dir()
     lock_path = rdir / "logixctl.lock"
@@ -782,15 +797,18 @@ def serve_daemon() -> None:
     reprog_idx = None
     dev_path = None
 
-    devices, _ = scan_hidraw()
-    if devices:
-        dev_path = devices[0].get("path")
+    def connect_device():
+        nonlocal hid_fd, reprog_idx, dev_path
+        dev_path = get_active_mouse_path()
         if dev_path:
             hid_fd = open_hidraw(dev_path)
             if hid_fd is not None:
                 reprog_idx = get_feature_index(hid_fd, 0x1B04)
-                for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
-                    set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
+                if reprog_idx is not None:
+                    for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
+                        set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
+
+    connect_device()
 
     # Gesture state
     active_cid: Optional[int] = None
@@ -814,15 +832,9 @@ def serve_daemon() -> None:
 
             # Reconnection logic if device was closed / not opened
             now = time.time()
-            if hid_fd is None and (now - last_reconnect >= 2.0):
+            if hid_fd is None and (now - last_reconnect >= 1.5):
                 last_reconnect = now
-                devices, _ = scan_hidraw()
-                if devices and devices[0].get("path"):
-                    hid_fd = open_hidraw(devices[0]["path"])
-                    if hid_fd is not None:
-                        reprog_idx = get_feature_index(hid_fd, 0x1B04)
-                        for cid in [0x01A0, 0x00C3, 0x00C4, 0x0053, 0x0056]:
-                            set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
+                connect_device()
 
             # Read live hardware HID++ reports from mouse
             if hid_fd is not None:
