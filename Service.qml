@@ -284,6 +284,7 @@ Item {
 
   Component.onCompleted: {
     if (!passive) {
+      daemonWanted = true
       mkdirProcess.running = true
       Qt.callLater(function() {
         if (statusFile) statusFile.reload()

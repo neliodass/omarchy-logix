@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # openlogictl.py — OpenLogi Controller & Hardware Driver for Omarchy
-# Supports Logitech MX Master 3, 3S, 4 & MX Keys with Smart Ring, Gestures, SmartShift, & DPI
+# Direct HID++ 2.0 Hardware Event Interceptor, Smart Ring, Gestures, SmartShift, & DPI
 # MIT License
 
 import argparse
 import fcntl
 import html
 import json
+import math
 import os
 import re
 import select
@@ -33,14 +34,22 @@ ACTION_RING_SLOTS = [
 GESTURE_DIRECTIONS = ["Up", "Down", "Left", "Right", "Click"]
 
 HARDWARE_BUTTONS = [
-    {"id": "GestureButton", "label": "Thumb Gesture Button", "defaultAction": "Gestures"},
-    {"id": "HapticPanel", "label": "Smart Ring / Thumb Rest", "defaultAction": "ShowActionRing"},
-    {"id": "DpiToggle", "label": "Top Mode Button", "defaultAction": "DpiCycle"},
-    {"id": "MiddleClick", "label": "Scroll Wheel Click", "defaultAction": "MiddleClick"},
-    {"id": "Back", "label": "Side Back Button", "defaultAction": "Back"},
-    {"id": "Forward", "label": "Side Forward Button", "defaultAction": "Forward"},
-    {"id": "Thumbwheel", "label": "Horizontal Thumb Wheel", "defaultAction": "HorizontalScroll"},
+    {"id": "GestureButton", "label": "Thumb Gesture Button", "cid": 0x00C3, "defaultAction": "Gestures"},
+    {"id": "HapticPanel", "label": "Smart Ring / Thumb Rest", "cid": 0x00C3, "defaultAction": "ShowActionRing"},
+    {"id": "DpiToggle", "label": "Top Mode Button", "cid": 0x00C4, "defaultAction": "DpiCycle"},
+    {"id": "MiddleClick", "label": "Scroll Wheel Click", "cid": 0x0052, "defaultAction": "MiddleClick"},
+    {"id": "Back", "label": "Side Back Button", "cid": 0x0053, "defaultAction": "Back"},
+    {"id": "Forward", "label": "Side Forward Button", "cid": 0x0056, "defaultAction": "Forward"},
+    {"id": "Thumbwheel", "label": "Horizontal Thumb Wheel", "cid": 0x0057, "defaultAction": "HorizontalScroll"},
 ]
+
+CID_TO_BUTTON = {
+    0x00C3: "GestureButton",
+    0x00C4: "DpiToggle",
+    0x0052: "MiddleClick",
+    0x0053: "Back",
+    0x0056: "Forward",
+}
 
 
 def plain_hid_text(raw: str) -> str:
@@ -308,6 +317,21 @@ def apply_hardware_dpi(hidraw_path: str, dpi: int) -> bool:
         os.close(fd)
 
 
+def set_button_diversion(fd: int, cid: int, divert: bool = True, raw_xy: bool = True) -> bool:
+    feat_idx = get_feature_index(fd, 0x1B04)
+    if feat_idx is None:
+        return False
+    p = bytearray(16)
+    p[0] = (cid >> 8) & 0xFF
+    p[1] = cid & 0xFF
+    if divert:
+        p[2] = 0x33 if raw_xy else 0x03 # divert + raw_xy
+    else:
+        p[2] = 0x32 if raw_xy else 0x02 # clear divert
+    res = hidpp_call(fd, feat_idx, 0x03, bytes(p))
+    return res is not None
+
+
 def dispatch_action(action_id: str) -> None:
     if not action_id or action_id == "None":
         return
@@ -495,18 +519,15 @@ def default_device_config(name: str, kind: str) -> dict:
 
 
 def find_matching_config(cfg_devices: dict, dev: dict) -> Tuple[Optional[str], dict]:
-    # 1. Exact match on ID/serial
     for k in [dev.get("id"), dev.get("serial"), dev.get("name")]:
         if k and k in cfg_devices:
             return k, cfg_devices[k]
 
-    # 2. Substring or name match
     dname = dev.get("name", "").lower()
     for ck, cv in cfg_devices.items():
         if ck.lower() in dname or dname in ck.lower() or "master" in ck.lower():
             return ck, cv
 
-    # 3. If there is only 1 device configured, use it
     if len(cfg_devices) == 1:
         single_k = list(cfg_devices.keys())[0]
         return single_k, cfg_devices[single_k]
@@ -525,7 +546,6 @@ def get_full_status() -> dict:
         matched_key, dev_cfg = find_matching_config(cfg_devices, dev)
         default_cfg = default_device_config(dev.get("name", ""), dev.get("kind", ""))
 
-        # Normalize buttons map (support both string and dict)
         buttons_map = {}
         raw_buttons = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
         for btn in HARDWARE_BUTTONS:
@@ -537,7 +557,6 @@ def get_full_status() -> dict:
             else:
                 buttons_map[bid] = {"action": btn["defaultAction"]}
 
-        # Normalize action ring slots
         ar_cfg = dev_cfg.get("action_ring", default_cfg["action_ring"]) if isinstance(dev_cfg, dict) else default_cfg["action_ring"]
         slots_map = {}
         raw_slots = ar_cfg.get("slots", {})
@@ -702,6 +721,28 @@ def serve_daemon() -> None:
     except (OSError, IOError):
         sys.exit(0)
 
+    # Initialize device hardware connection and button diversions
+    hid_fd = None
+    reprog_idx = None
+    dev_path = None
+
+    devices, _ = scan_hidraw()
+    if devices:
+        dev_path = devices[0].get("path")
+        if dev_path:
+            hid_fd = open_hidraw(dev_path)
+            if hid_fd is not None:
+                reprog_idx = get_feature_index(hid_fd, 0x1B04)
+                # Divert Gesture Button, Top Mode Button, and Side Buttons
+                for cid in [0x00C3, 0x00C4, 0x0053, 0x0056]:
+                    set_button_diversion(hid_fd, cid, divert=True, raw_xy=True)
+
+    # Gesture state
+    active_cid: Optional[int] = None
+    acc_dx = 0
+    acc_dy = 0
+    press_time = 0.0
+
     try:
         status = get_full_status()
         tmp_status = status_path.with_suffix(".tmp")
@@ -710,6 +751,7 @@ def serve_daemon() -> None:
 
         last_heartbeat = time.time()
         while True:
+            # Check for command spools
             cmd_files = sorted(rdir.glob("cmd-*.json"))
             for cf in cmd_files:
                 process_command(cf)
@@ -717,17 +759,86 @@ def serve_daemon() -> None:
                 tmp_status.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
                 tmp_status.replace(status_path)
 
+            # Read live hardware HID++ reports from mouse
+            read_fds = [hid_fd] if hid_fd is not None else []
+            r, _, _ = select.select(read_fds, [], [], 0.05)
+            if hid_fd is not None and hid_fd in r:
+                try:
+                    packet = os.read(hid_fd, 64)
+                    if len(packet) >= 4 and packet[0] == 0x11:
+                        feat = packet[2]
+                        func = (packet[3] >> 4) & 0x0F
+
+                        # ReprogControlsV4 event
+                        if reprog_idx is not None and feat == reprog_idx:
+                            if func == 0:
+                                # Diverted button press / release
+                                cid = struct.unpack(">H", packet[4:6])[0]
+                                if cid != 0:
+                                    # Button DOWN
+                                    active_cid = cid
+                                    acc_dx = 0
+                                    acc_dy = 0
+                                    press_time = time.time()
+                                elif active_cid is not None:
+                                    # Button UP — process action or gesture
+                                    btn_name = CID_TO_BUTTON.get(active_cid, "GestureButton")
+                                    cfg = load_openlogi_config()
+                                    _, dev_cfg = find_matching_config(cfg.get("devices", {}), devices[0] if devices else {})
+                                    buttons_map = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
+
+                                    dist = math.sqrt(acc_dx * acc_dx + acc_dy * acc_dy)
+                                    if dist < 20:
+                                        # Single Click
+                                        act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("GestureButton", "HapticPanel") else "None")
+                                        if isinstance(act, dict):
+                                            act = act.get("action", "None")
+                                        dispatch_action(act)
+                                    else:
+                                        # Swipe Gesture / Action Ring direction
+                                        angle_deg = math.degrees(math.atan2(acc_dy, acc_dx)) % 360
+                                        # 4-way gesture
+                                        if 45 <= angle_deg < 135:
+                                            gdir = "Down"
+                                        elif 135 <= angle_deg < 225:
+                                            gdir = "Left"
+                                        elif 225 <= angle_deg < 315:
+                                            gdir = "Up"
+                                        else:
+                                            gdir = "Right"
+
+                                        gmap = dev_cfg.get("gestures", {}) if isinstance(dev_cfg, dict) else {}
+                                        gact = gmap.get(gdir, f"Tile{gdir}")
+                                        if isinstance(gact, dict):
+                                            gact = gact.get("action", f"Tile{gdir}")
+                                        dispatch_action(gact)
+
+                                    active_cid = None
+                            elif func == 1 and active_cid is not None:
+                                # Raw XY accumulation while button is held
+                                dx = struct.unpack(">h", packet[4:6])[0]
+                                dy = struct.unpack(">h", packet[6:8])[0]
+                                acc_dx += dx
+                                acc_dy += dy
+                except Exception:
+                    pass
+
             now = time.time()
             if now - last_heartbeat >= HEARTBEAT_SEC:
                 status = get_full_status()
                 tmp_status.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
                 tmp_status.replace(status_path)
                 last_heartbeat = now
-
-            time.sleep(0.2)
     except KeyboardInterrupt:
         pass
     finally:
+        if hid_fd is not None:
+            try:
+                for cid in [0x00C3, 0x00C4, 0x0053, 0x0056]:
+                    set_button_diversion(hid_fd, cid, divert=False, raw_xy=False)
+                os.close(hid_fd)
+            except Exception:
+                pass
         try:
             lock_fd.close()
             lock_path.unlink()
