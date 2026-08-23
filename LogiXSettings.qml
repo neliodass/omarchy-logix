@@ -701,14 +701,32 @@ Item {
                               { id: "ratchet", label: "Always Ratchet" },
                               { id: "freewheel", label: "Always Free Spin" }
                             ]
-                            delegate: Button {
-                              text: modelData.label
-                              highlighted: device && device.smartshift && device.smartshift.mode === modelData.id
-                              onClicked: {
-                                if (device) {
-                                  var thresh = device.smartshift && device.smartshift.threshold !== undefined ? device.smartshift.threshold : 10
-                                  var torq = device.smartshift && device.smartshift.torque !== undefined ? device.smartshift.torque : 75
-                                  mx.setSmartShift(device.id, modelData.id, thresh, torq)
+                            delegate: Rectangle {
+                              width: 140
+                              height: 34
+                              radius: 6
+                              property bool isSelected: device && device.smartshift && device.smartshift.mode === modelData.id
+                              color: isSelected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                              border.color: isSelected ? "#ffffff" : "transparent"
+                              border.width: isSelected ? 1 : 0
+
+                              Text {
+                                anchors.centerIn: parent
+                                text: modelData.label
+                                color: parent.isSelected ? "#ffffff" : root.foreground
+                                font.bold: parent.isSelected
+                                font.pixelSize: 11
+                              }
+
+                              MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                  if (device) {
+                                    var thresh = device.smartshift && device.smartshift.threshold !== undefined ? device.smartshift.threshold : 10
+                                    var torq = device.smartshift && device.smartshift.torque !== undefined ? device.smartshift.torque : 75
+                                    mx.setSmartShift(device.id, modelData.id, thresh, torq)
+                                  }
                                 }
                               }
                             }
