@@ -91,7 +91,32 @@ Item {
     return res
   }
 
+  property int configVersion: 0
+
+  Connections {
+    target: root.mx
+    function onDevicesChanged() {
+      root.configVersion++
+    }
+  }
+
+  function assignAction(actionId, actionLabel) {
+    if (!device) return
+    if (activeTab === "ring") {
+      mx.setActionRingSlot(device.id, selectedSlotId, actionId, actionLabel)
+      showToast("Assigned " + actionLabel + " to " + selectedSlotId)
+    } else if (activeTab === "gestures") {
+      mx.setGesture(device.id, selectedGestureId, actionId, actionLabel)
+      showToast("Assigned " + actionLabel + " to " + selectedGestureId)
+    } else if (activeTab === "buttons") {
+      mx.setButton(device.id, selectedButtonId, actionId)
+      showToast("Assigned " + actionLabel + " to " + selectedButtonId)
+    }
+    root.configVersion++
+  }
+
   function currentAssignedAction() {
+    var _ = root.configVersion
     if (activeTab === "ring") {
       return getSlotAction(selectedSlotId)
     } else if (activeTab === "gestures") {
@@ -103,6 +128,7 @@ Item {
   }
 
   function getButtonAction(buttonId) {
+    var _ = root.configVersion
     if (!device) return ""
     var btns = Model.getButtons(device)
     for (var i = 0; i < btns.length; i++) {
@@ -112,6 +138,7 @@ Item {
   }
 
   function getSlotAction(slotId) {
+    var _ = root.configVersion
     if (!device) return ""
     var slots = Model.getActionRingSlots(device)
     for (var i = 0; i < slots.length; i++) {
@@ -121,6 +148,7 @@ Item {
   }
 
   function getGestureAction(gestureId) {
+    var _ = root.configVersion
     if (!device) return ""
     var gestures = Model.getGestures(device)
     for (var i = 0; i < gestures.length; i++) {
@@ -335,7 +363,10 @@ Item {
 
                       // 8 Radial Slots
                       Repeater {
-                        model: Model.getActionRingSlots(device)
+                        model: {
+                          var _ = root.configVersion
+                          return Model.getActionRingSlots(device)
+                        }
                         delegate: Item {
                           id: slotNode
                           property real angleRad: (modelData.angle - 90) * Math.PI / 180
@@ -437,12 +468,7 @@ Item {
                             Button {
                               text: parent.parent.isAssigned ? "Active" : "Assign"
                               enabled: !parent.parent.isAssigned
-                              onClicked: {
-                                if (device) {
-                                  mx.setActionRingSlot(device.id, root.selectedSlotId, modelData.id, modelData.label)
-                                  root.showToast("Assigned " + modelData.label + " to " + root.selectedSlotId)
-                                }
-                              }
+                              onClicked: root.assignAction(modelData.id, modelData.label)
                             }
                           }
                         }
@@ -520,7 +546,10 @@ Item {
                         Layout.fillHeight: true
                         clip: true
                         spacing: 8
-                        model: Model.getGestures(device)
+                        model: {
+                          var _ = root.configVersion
+                          return Model.getGestures(device)
+                        }
 
                         delegate: Rectangle {
                           width: ListView.view.width
@@ -623,12 +652,7 @@ Item {
                             Button {
                               text: parent.parent.isAssigned ? "Active" : "Assign"
                               enabled: !parent.parent.isAssigned
-                              onClicked: {
-                                if (device) {
-                                  mx.setGesture(device.id, root.selectedGestureId, modelData.id, modelData.label)
-                                  root.showToast("Assigned " + modelData.label + " to " + root.selectedGestureId)
-                                }
-                              }
+                              onClicked: root.assignAction(modelData.id, modelData.label)
                             }
                           }
                         }
@@ -814,7 +838,10 @@ Item {
                         Layout.fillHeight: true
                         clip: true
                         spacing: 8
-                        model: Model.getButtons(device)
+                        model: {
+                          var _ = root.configVersion
+                          return Model.getButtons(device)
+                        }
 
                         delegate: Rectangle {
                           width: ListView.view.width
@@ -896,12 +923,7 @@ Item {
                             Button {
                               text: parent.parent.isAssigned ? "Active" : "Assign"
                               enabled: !parent.parent.isAssigned
-                              onClicked: {
-                                if (device) {
-                                  mx.setButton(device.id, root.selectedButtonId, modelData.id)
-                                  root.showToast("Assigned " + modelData.label + " to " + root.selectedButtonId)
-                                }
-                              }
+                              onClicked: root.assignAction(modelData.id, modelData.label)
                             }
                           }
                         }
