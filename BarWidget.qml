@@ -89,7 +89,7 @@ Panel {
   Service {
     id: localMx
     settings: root.settings
-    passive: false
+    passive: true
   }
 
   IpcHandler {

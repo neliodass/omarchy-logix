@@ -236,15 +236,10 @@ Item {
 
   Process {
     id: daemon
-    running: root.daemonWanted && !root.peerServing
+    running: root.daemonWanted && !root.peerServing && !root.passive
     command: ["python3", root.helperPath, "serve"]
     onExited: function(exitCode) {
-      if (!root.daemonWanted) return
-      root.peerServing = false
-      Qt.callLater(function() {
-        if (root.daemonWanted && !root.peerServing && !daemon.running)
-          daemon.running = true
-      })
+      root.peerServing = true
     }
   }
 
