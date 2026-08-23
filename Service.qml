@@ -121,9 +121,6 @@ Item {
     var payloadJson = JSON.stringify(payload || {})
     Quickshell.execDetached(["python3", helperPath, "write-cmd", type, String(devId), payloadJson])
     ensureDaemon()
-    Qt.callLater(function() {
-      if (statusFile) statusFile.reload()
-    })
   }
 
   function updateDeviceInMemory(deviceId, updateFn) {

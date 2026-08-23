@@ -651,7 +651,11 @@ def apply_device_update(device_id: str, updates: dict) -> dict:
     target = config["devices"][matched_key]
     for k, v in updates.items():
         if isinstance(v, dict) and isinstance(target.get(k), dict):
-            target[k].update(v)
+            for sub_k, sub_v in v.items():
+                if isinstance(sub_v, dict) and isinstance(target[k].get(sub_k), dict):
+                    target[k][sub_k].update(sub_v)
+                else:
+                    target[k][sub_k] = sub_v
         else:
             target[k] = v
 
