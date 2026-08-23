@@ -534,6 +534,7 @@ def default_device_config(name: str, kind: str) -> dict:
     return {
         "dpi": 1000,
         "dpi_preset": [800, 1000, 1600, 2400, 4000],
+        "gesture_distance": 15,
         "smartshift": {"mode": "auto", "threshold": 10, "torque": 75},
         "scroll": {"invert_y": False, "invert_thumb": False, "hires": True},
         "action_ring": {"enabled": True, "haptics": True, "slots": slots},
@@ -614,6 +615,7 @@ def get_full_status() -> dict:
 
         dev["config"] = dev_cfg
         dev["dpi"] = dev_cfg.get("dpi", 1000) if isinstance(dev_cfg, dict) else 1000
+        dev["gesture_distance"] = dev_cfg.get("gesture_distance", 15) if isinstance(dev_cfg, dict) else 15
         dev["smartshift"] = dev_cfg.get("smartshift", {"mode": "auto", "threshold": 10, "torque": 75}) if isinstance(dev_cfg, dict) else {"mode": "auto", "threshold": 10, "torque": 75}
         dev["scroll"] = dev_cfg.get("scroll", {"invert_y": False, "invert_thumb": False, "hires": True}) if isinstance(dev_cfg, dict) else {"invert_y": False, "invert_thumb": False, "hires": True}
         dev["action_ring"] = ar_cfg
@@ -699,6 +701,9 @@ def process_command(cmd_file: Path) -> None:
     if cmd_type == "set_dpi":
         dpi_val = int(payload.get("dpi", 1000))
         apply_device_update(device_id, {"dpi": dpi_val})
+    elif cmd_type == "set_gesture_distance":
+        dist_val = int(payload.get("distance", 15))
+        apply_device_update(device_id, {"gesture_distance": dist_val})
     elif cmd_type == "set_smartshift":
         apply_device_update(device_id, {"smartshift": payload})
     elif cmd_type == "set_scroll":
@@ -778,16 +783,6 @@ def write_status_file(status: dict) -> None:
     except Exception:
         pass
 
-
-def serve_daemon() -> None:
-    rdir = get_runtime_dir()
-    lock_path = rdir / "openlogictl.lock"
-
-    try:
-        lock_fd = open(lock_path, "w")
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except (OSError, IOError):
-        sys.exit(0)
 
 def is_daemon_running() -> bool:
     rdir = get_runtime_dir()
@@ -900,18 +895,18 @@ def serve_daemon() -> None:
                                         cfg = load_openlogi_config()
                                         _, dev_cfg = find_matching_config(cfg.get("devices", {}), devices[0] if devices else {})
                                         buttons_map = dev_cfg.get("buttons", {}) if isinstance(dev_cfg, dict) else {}
+                                        g_thresh = int(dev_cfg.get("gesture_distance", 15)) if isinstance(dev_cfg, dict) else 15
 
                                         dist = math.sqrt(acc_dx * acc_dx + acc_dy * acc_dy)
-                                        elapsed = time.time() - press_time
 
-                                        if dist < 35 or elapsed < 0.25:
+                                        if dist < g_thresh:
                                             # Single Click
                                             act = buttons_map.get(btn_name, "ShowActionRing" if btn_name in ("HapticPanel", "GestureButton") else "None")
                                             if isinstance(act, dict):
                                                 act = act.get("action", "None")
                                             dispatch_action(act)
                                         else:
-                                            # Swipe Gesture / Action Ring direction
+                                            # Swipe Gesture / Quick flick direction
                                             angle_deg = math.degrees(math.atan2(acc_dy, acc_dx)) % 360
                                             if 45 <= angle_deg < 135:
                                                 gdir = "Down"

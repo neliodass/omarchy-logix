@@ -207,6 +207,13 @@ Item {
     writeCmd("set_button", { button: button, action: action })
   }
 
+  function setGestureDistance(deviceId, distance) {
+    updateDeviceInMemory(deviceId, function(d) {
+      d.gesture_distance = distance
+    })
+    writeCmd("set_gesture_distance", { distance: distance })
+  }
+
   function setKeyboard(deviceId, kbSettings) {
     writeCmd("set_keyboard", kbSettings)
   }

@@ -710,6 +710,43 @@ Item {
                       font.pixelSize: 13
                     }
 
+                    // Gesture Swipe Distance / Sensitivity Slider
+                    Rectangle {
+                      Layout.fillWidth: true
+                      Layout.preferredHeight: 64
+                      radius: 8
+                      color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+
+                      Column {
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 4
+
+                        RowLayout {
+                          width: parent.width
+                          Text { text: "Swipe Distance (Flick Sensitivity)"; color: root.foreground; font.pixelSize: 11; font.bold: true }
+                          Item { Layout.fillWidth: true }
+                          Text {
+                            text: (device && device.gesture_distance ? device.gesture_distance : 15) + " px " + (device && device.gesture_distance <= 12 ? "(Ultra Short)" : (device && device.gesture_distance <= 20 ? "(Short Flick)" : "(Standard)"))
+                            color: root.accent
+                            font.pixelSize: 10
+                            font.bold: true
+                          }
+                        }
+
+                        Slider {
+                          width: parent.width
+                          from: 6
+                          to: 45
+                          stepSize: 1
+                          value: device && device.gesture_distance ? device.gesture_distance : 15
+                          onMoved: {
+                            if (device) mx.setGestureDistance(device.id, Math.round(value))
+                          }
+                        }
+                      }
+                    }
+
                     ListView {
                       Layout.fillWidth: true
                       Layout.fillHeight: true
